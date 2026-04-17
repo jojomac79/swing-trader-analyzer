@@ -1,5 +1,7 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { auth } from "@/auth";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -22,6 +24,20 @@ type FinnhubEarningsItem = {
 
 type FinnhubEarningsResponse = {
   earningsCalendar?: FinnhubEarningsItem[];
+};
+
+type FinnhubNewsItem = {
+  headline?: string;
+  summary?: string;
+  source?: string;
+  url?: string;
+  datetime?: number;
+};
+
+type HeadlineItem = {
+  headline: string;
+  source: string;
+  url: string;
 };
 
 type TradierExpirationsResponse = {
@@ -86,7 +102,18 @@ type LiveIronCondor = {
   upperBreakeven: number;
 };
 
+type AppUserRow = {
+  user_id: string;
+  daily_count: number;
+  last_reset_date: string;
+  is_premium: boolean;
+};
+
 function formatDate(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function formatNewsDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
@@ -269,11 +296,7 @@ function buildIronCondor(
 ): LiveIronCondor | null {
   if (!bullPut || !bearCall) return null;
   if (bullPut.expiration !== bearCall.expiration) return null;
-
-  // Keep v1 simple: require equal width for clean math.
   if (Math.abs(bullPut.width - bearCall.width) > 0.0001) return null;
-
-  // Sanity check: put side should be below call side.
   if (bullPut.shortStrike >= bearCall.shortStrike) return null;
 
   const width = bullPut.width;
@@ -380,49 +403,88 @@ IMPORTANT:
 
 export async function POST(req: Request) {
   try {
-    // 🔐 USER IDENTIFICATION (simple version)
-    const userId = req.headers.get("x-user-id");
+    const session = await auth();
+    const email = session?.user?.email;
+
+    const fallbackUserId = req.headers.get("x-user-id");
+    const userId = email || fallbackUserId;
 
     if (!userId) {
-      return NextResponse.json(
-        { error: "Please continue with Google to keep using the analyzer." },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Missing user identity." }, { status: 401 });
     }
 
-    // 📅 DAILY LIMIT LOGIC
     const todayKey = new Date().toISOString().slice(0, 10);
 
-    // 🧠 TEMP IN-MEMORY STORAGE (replace with DB later)
-    // @ts-ignore
-    globalThis.usage = globalThis.usage || {};
+    const { data: existingUser, error: fetchError } = await supabaseAdmin
+      .from("app_users")
+      .select("user_id, daily_count, last_reset_date, is_premium")
+      .eq("user_id", userId)
+      .maybeSingle<AppUserRow>();
 
-    // @ts-ignore
-    let userData = globalThis.usage[userId];
+    if (fetchError) {
+      console.error("Supabase fetch error:", fetchError);
+      return NextResponse.json({ error: "Failed to check usage." }, { status: 500 });
+    }
+
+    let userData = existingUser;
 
     if (!userData) {
-      userData = { date: todayKey, count: 0 };
+      const { data: insertedUser, error: insertError } = await supabaseAdmin
+        .from("app_users")
+        .insert([
+          {
+            user_id: userId,
+            daily_count: 0,
+            last_reset_date: todayKey,
+            is_premium: false,
+          },
+        ])
+        .select("user_id, daily_count, last_reset_date, is_premium")
+        .single<AppUserRow>();
+
+      if (insertError) {
+        console.error("Supabase insert error:", insertError);
+        return NextResponse.json({ error: "Failed to create usage record." }, { status: 500 });
+      }
+
+      userData = insertedUser;
     }
 
-    // reset daily
-    if (userData.date !== todayKey) {
-      userData.date = todayKey;
-      userData.count = 0;
+    if (userData.last_reset_date !== todayKey) {
+      const { error: resetError } = await supabaseAdmin
+        .from("app_users")
+        .update({
+          daily_count: 0,
+          last_reset_date: todayKey,
+        })
+        .eq("user_id", userId);
+
+      if (resetError) {
+        console.error("Supabase reset error:", resetError);
+        return NextResponse.json({ error: "Failed to reset daily usage." }, { status: 500 });
+      }
+
+      userData.daily_count = 0;
+      userData.last_reset_date = todayKey;
     }
 
-    // 🚫 LIMIT HIT
-    if (userData.count >= 3) {
+    if (userData.daily_count >= 3 && !userData.is_premium) {
       return NextResponse.json(
-        { error: "Daily limit reached. Upgrade for unlimited access." },
+        { error: "Daily limit reached. Sign in or upgrade for more access." },
         { status: 403 }
       );
     }
 
-    // ✅ INCREMENT USAGE
-    userData.count += 1;
+    const { error: updateError } = await supabaseAdmin
+      .from("app_users")
+      .update({ daily_count: userData.daily_count + 1 })
+      .eq("user_id", userId);
 
-    // @ts-ignore
-    globalThis.usage[userId] = userData;
+    if (updateError) {
+      console.error("Supabase update error:", updateError);
+      return NextResponse.json({ error: "Failed to update usage." }, { status: 500 });
+    }
+
     const { ticker } = await req.json();
 
     if (!ticker || typeof ticker !== "string") {
@@ -451,16 +513,25 @@ export async function POST(req: Request) {
     const sixtyDaysOut = new Date();
     sixtyDaysOut.setDate(today.getDate() + 60);
 
-    const quoteUrl =
-      `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${finnhubKey}`;
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(today.getDate() - 7);
+
+    const quoteUrl = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(
+      symbol
+    )}&token=${finnhubKey}`;
 
     const earningsUrl =
       `https://finnhub.io/api/v1/calendar/earnings?symbol=${encodeURIComponent(symbol)}` +
       `&from=${formatDate(today)}&to=${formatDate(sixtyDaysOut)}&token=${finnhubKey}`;
 
-    const [quoteRes, earningsRes] = await Promise.all([
+    const newsUrl =
+      `https://finnhub.io/api/v1/company-news?symbol=${encodeURIComponent(symbol)}` +
+      `&from=${formatNewsDate(sevenDaysAgo)}&to=${formatNewsDate(today)}&token=${finnhubKey}`;
+
+    const [quoteRes, earningsRes, newsRes] = await Promise.all([
       fetch(quoteUrl, { cache: "no-store" }),
       fetch(earningsUrl, { cache: "no-store" }),
+      fetch(newsUrl, { cache: "no-store" }),
     ]);
 
     if (!quoteRes.ok) {
@@ -477,8 +548,27 @@ export async function POST(req: Request) {
       );
     }
 
+    if (!newsRes.ok) {
+      return NextResponse.json(
+        { error: `Failed to fetch recent headlines for ${symbol}.` },
+        { status: 500 }
+      );
+    }
+
     const quoteData = (await quoteRes.json()) as FinnhubQuote;
     const earningsData = (await earningsRes.json()) as FinnhubEarningsResponse;
+    const newsData = (await newsRes.json()) as FinnhubNewsItem[];
+
+    const recentHeadlines: HeadlineItem[] = Array.isArray(newsData)
+      ? newsData
+          .filter((item) => item.headline && item.source && item.url)
+          .slice(0, 5)
+          .map((item) => ({
+            headline: item.headline!,
+            source: item.source!,
+            url: item.url!,
+          }))
+      : [];
 
     const currentPriceNumber =
       typeof quoteData.c === "number" && quoteData.c > 0 ? quoteData.c : null;
@@ -498,7 +588,9 @@ export async function POST(req: Request) {
         : "No upcoming earnings found in next 60 days";
 
     const expirationsRes = await fetch(
-      `https://api.tradier.com/v1/markets/options/expirations?symbol=${encodeURIComponent(symbol)}&includeAllRoots=true`,
+      `https://api.tradier.com/v1/markets/options/expirations?symbol=${encodeURIComponent(
+        symbol
+      )}&includeAllRoots=true`,
       {
         headers: {
           Authorization: `Bearer ${tradierKey}`,
@@ -527,7 +619,9 @@ export async function POST(req: Request) {
     }
 
     const chainRes = await fetch(
-      `https://api.tradier.com/v1/markets/options/chains?symbol=${encodeURIComponent(symbol)}&expiration=${encodeURIComponent(selectedExpiration)}&greeks=false`,
+      `https://api.tradier.com/v1/markets/options/chains?symbol=${encodeURIComponent(
+        symbol
+      )}&expiration=${encodeURIComponent(selectedExpiration)}&greeks=false`,
       {
         headers: {
           Authorization: `Bearer ${tradierKey}`,
@@ -558,10 +652,7 @@ export async function POST(req: Request) {
       liveBearCallSpread.expiration = selectedExpiration;
     }
 
-    const liveIronCondor = buildIronCondor(
-      liveBullPutSpread,
-      liveBearCallSpread
-    );
+    const liveIronCondor = buildIronCondor(liveBullPutSpread, liveBearCallSpread);
 
     const liveSpreadSection = buildLiveSpreadSection(
       liveBullPutSpread,
@@ -569,12 +660,26 @@ export async function POST(req: Request) {
       liveIronCondor
     );
 
+    const headlinesSection =
+      recentHeadlines.length > 0
+        ? `
+RECENT HEADLINES:
+${recentHeadlines
+  .map((item, index) => `${index + 1}. ${item.headline} (${item.source})`)
+  .join("\n")}
+`
+        : `
+RECENT HEADLINES:
+- No recent headlines found.
+`;
+
     const prompt = `
 You are a sharp, no-BS stock trader.
 
 Analyze the stock: ${symbol}
 Current Price: $${currentPrice}
 Next Earnings Date: ${nextEarnings}
+${headlinesSection}
 
 ${liveSpreadSection}
 
@@ -583,6 +688,8 @@ Your goal is to give a fast, actionable breakdown someone could use to think abo
 Use the provided current price as the anchor for all levels. Do not reference price levels far from the current price unless clearly justified.
 
 Treat the provided earnings date/status as the source of truth. Do not assume earnings already happened if the provided earnings date is upcoming.
+
+Use the recent headlines as supporting context only. Do not overstate them. If they are mixed or unclear, say so.
 
 Do not default to Neutral just because earnings are upcoming or because the setup is not perfect.
 
@@ -681,6 +788,7 @@ Tone:
         liveBullPutSpread,
         liveBearCallSpread,
         liveIronCondor,
+        recentHeadlines,
       },
     });
   } catch (error) {

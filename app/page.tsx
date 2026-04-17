@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 
 type LiveVerticalSpread = {
@@ -21,6 +21,29 @@ type LiveVerticalSpread = {
   breakeven: number;
 };
 
+type LiveIronCondor = {
+  strategyType: "Iron Condor";
+  expiration: string;
+  putShortStrike: number;
+  putLongStrike: number;
+  callShortStrike: number;
+  callLongStrike: number;
+  putCredit: number;
+  callCredit: number;
+  totalCredit: number;
+  width: number;
+  maxProfit: number;
+  maxLoss: number;
+  lowerBreakeven: number;
+  upperBreakeven: number;
+};
+
+type HeadlineItem = {
+  headline: string;
+  source: string;
+  url: string;
+};
+
 type MetaData = {
   symbol?: string;
   currentPrice?: string;
@@ -28,37 +51,39 @@ type MetaData = {
   selectedExpiration?: string;
   liveBullPutSpread?: LiveVerticalSpread | null;
   liveBearCallSpread?: LiveVerticalSpread | null;
+  liveIronCondor?: LiveIronCondor | null;
+  recentHeadlines?: HeadlineItem[];
 };
 
-type UsageState = {
-  date: string;
-  anonymousUses: number;
-  authedUses: number;
-  bonusUses: number;
-};
+type SelectedTradeCard =
+  | {
+      type: "bullPut";
+      title: string;
+      spread: LiveVerticalSpread;
+    }
+  | {
+      type: "bearCall";
+      title: string;
+      spread: LiveVerticalSpread;
+    }
+  | {
+      type: "ironCondor";
+      title: string;
+      spread: LiveIronCondor;
+    }
+  | null;
 
-const STORAGE_KEY = "swing-trade-usage-v1";
 const USER_ID_KEY = "swing-trade-user-id";
-const ANON_FREE_USES = 1;
-const AUTHED_FREE_USES = 2;
-const BONUS_USES_PER_DAY = 1;
-const AD_TIMER_SECONDS = 10;
-
-function getTodayKey() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function getDefaultUsageState(): UsageState {
-  return {
-    date: getTodayKey(),
-    anonymousUses: 0,
-    authedUses: 0,
-    bonusUses: 0,
-  };
-}
 
 function ensureAnonymousUserId(): string {
   if (typeof window === "undefined") return "";
+
+  const cookieMatch = document.cookie.match(/(?:^|;\s*)anon_id=([^;]+)/);
+  if (cookieMatch?.[1]) {
+    const cookieId = decodeURIComponent(cookieMatch[1]);
+    window.localStorage.setItem(USER_ID_KEY, cookieId);
+    return cookieId;
+  }
 
   let userId = window.localStorage.getItem(USER_ID_KEY);
 
@@ -67,37 +92,26 @@ function ensureAnonymousUserId(): string {
     window.localStorage.setItem(USER_ID_KEY, userId);
   }
 
+  document.cookie = `anon_id=${encodeURIComponent(
+    userId
+  )}; path=/; max-age=31536000; samesite=lax`;
+
   return userId;
 }
 
-function readUsageState(): UsageState {
-  if (typeof window === "undefined") return getDefaultUsageState();
+function getBiasFromResult(result: string): "Bullish" | "Bearish" | "Neutral" | null {
+  if (!result) return null;
 
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return getDefaultUsageState();
+  const match = result.match(/Overall Bias:\s*-\s*(Bullish|Bearish|Neutral)/i);
+  if (!match?.[1]) return null;
 
-    const parsed = JSON.parse(raw) as Partial<UsageState>;
-    const today = getTodayKey();
+  const bias = match[1].toLowerCase();
 
-    if (parsed.date !== today) {
-      return getDefaultUsageState();
-    }
+  if (bias === "bullish") return "Bullish";
+  if (bias === "bearish") return "Bearish";
+  if (bias === "neutral") return "Neutral";
 
-    return {
-      date: today,
-      anonymousUses: parsed.anonymousUses ?? 0,
-      authedUses: parsed.authedUses ?? 0,
-      bonusUses: parsed.bonusUses ?? 0,
-    };
-  } catch {
-    return getDefaultUsageState();
-  }
-}
-
-function writeUsageState(nextState: UsageState) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
+  return null;
 }
 
 function SpreadCard({
@@ -117,6 +131,11 @@ function SpreadCard({
       <h2 style={styles.cardTitle}>{title}</h2>
 
       <div style={styles.spreadGrid}>
+        <div>
+          <strong>Strategy</strong>
+          <br />
+          {spread.strategyType}
+        </div>
         <div>
           <strong>Expiration</strong>
           <br />
@@ -165,6 +184,86 @@ function SpreadCard({
   );
 }
 
+function IronCondorCard({
+  title,
+  spread,
+}: {
+  title: string;
+  spread: LiveIronCondor;
+}) {
+  return (
+    <div style={styles.spreadCard}>
+      <h2 style={styles.cardTitle}>{title}</h2>
+
+      <div style={styles.spreadGrid}>
+        <div>
+          <strong>Strategy</strong>
+          <br />
+          {spread.strategyType}
+        </div>
+        <div>
+          <strong>Expiration</strong>
+          <br />
+          {spread.expiration}
+        </div>
+        <div>
+          <strong>Put Side</strong>
+          <br />
+          {spread.putShortStrike} / {spread.putLongStrike}
+        </div>
+        <div>
+          <strong>Call Side</strong>
+          <br />
+          {spread.callShortStrike} / {spread.callLongStrike}
+        </div>
+        <div>
+          <strong>Total Credit</strong>
+          <br />
+          ${spread.totalCredit.toFixed(2)}
+        </div>
+        <div>
+          <strong>Lower B/E</strong>
+          <br />
+          ${spread.lowerBreakeven.toFixed(2)}
+        </div>
+        <div>
+          <strong>Upper B/E</strong>
+          <br />
+          ${spread.upperBreakeven.toFixed(2)}
+        </div>
+        <div>
+          <strong>Max Profit</strong>
+          <br />
+          ${spread.maxProfit.toFixed(2)}
+        </div>
+        <div>
+          <strong>Max Loss</strong>
+          <br />
+          ${spread.maxLoss.toFixed(2)}
+        </div>
+      </div>
+
+      <div style={styles.quoteRow}>
+        <div>
+          <strong>Put Credit</strong>
+          <br />
+          ${spread.putCredit.toFixed(2)}
+        </div>
+        <div>
+          <strong>Call Credit</strong>
+          <br />
+          ${spread.callCredit.toFixed(2)}
+        </div>
+        <div>
+          <strong>Wing Width</strong>
+          <br />
+          {spread.width.toFixed(2)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const { data: session, status } = useSession();
   const isSignedIn = !!session?.user;
@@ -175,104 +274,45 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [meta, setMeta] = useState<MetaData | null>(null);
-  const [usage, setUsage] = useState<UsageState>(getDefaultUsageState());
-  const [watchingAd, setWatchingAd] = useState(false);
-  const [adCountdown, setAdCountdown] = useState(AD_TIMER_SECONDS);
+  const [showGoogleGate, setShowGoogleGate] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    ensureAnonymousUserId();
-    setUsage(readUsageState());
-  }, []);
+  const bias = useMemo(() => getBiasFromResult(result), [result]);
 
-  useEffect(() => {
-    if (!watchingAd) return;
+  const selectedTradeCard = useMemo<SelectedTradeCard>(() => {
+    if (!meta || !bias) return null;
 
-    if (adCountdown <= 0) {
-      const nextUsage = {
-        ...usage,
-        bonusUses: Math.min(usage.bonusUses + 1, BONUS_USES_PER_DAY),
-      };
-      setUsage(nextUsage);
-      writeUsageState(nextUsage);
-      setWatchingAd(false);
-      setAdCountdown(AD_TIMER_SECONDS);
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      setAdCountdown((prev) => prev - 1);
-    }, 1000);
-
-    return () => window.clearTimeout(timer);
-  }, [watchingAd, adCountdown, usage]);
-
-  const usageSummary = useMemo(() => {
-    const anonymousRemaining = Math.max(ANON_FREE_USES - usage.anonymousUses, 0);
-    const authedRemaining = isSignedIn
-      ? Math.max(AUTHED_FREE_USES - usage.authedUses, 0)
-      : AUTHED_FREE_USES;
-    const bonusRemaining = Math.max(BONUS_USES_PER_DAY - usage.bonusUses, 0);
-
-    return {
-      anonymousRemaining,
-      authedRemaining,
-      bonusRemaining,
-      totalUsed: usage.anonymousUses + usage.authedUses + usage.bonusUses,
-    };
-  }, [usage, isSignedIn]);
-
-  const getGateStatus = () => {
-    if (usage.anonymousUses < ANON_FREE_USES) {
+    if (bias === "Bullish" && meta.liveBullPutSpread) {
       return {
-        allowed: true,
-        nextBucket: "anonymous" as const,
-        reason: "Your first analysis today is free.",
+        type: "bullPut",
+        title: "AI-Selected Trade Idea",
+        spread: meta.liveBullPutSpread,
       };
     }
 
-    if (isSignedIn && usage.authedUses < AUTHED_FREE_USES) {
+    if (bias === "Bearish" && meta.liveBearCallSpread) {
       return {
-        allowed: true,
-        nextBucket: "authed" as const,
-        reason: "Signed-in free analyses are still available.",
+        type: "bearCall",
+        title: "AI-Selected Trade Idea",
+        spread: meta.liveBearCallSpread,
       };
     }
 
-    if (usage.bonusUses > 0) {
+    if (bias === "Neutral" && meta.liveIronCondor) {
       return {
-        allowed: true,
-        nextBucket: "bonus" as const,
-        reason: "Your bonus analysis is available.",
+        type: "ironCondor",
+        title: "AI-Selected Trade Idea",
+        spread: meta.liveIronCondor,
       };
     }
 
-    return {
-      allowed: false,
-      nextBucket: null,
-      reason: isSignedIn
-        ? "You hit today’s free limit. Upgrade for unlimited analyses."
-        : "Use your free analysis, then sign in with Google to unlock more.",
-    };
-  };
-
-  const consumeUse = (bucket: "anonymous" | "authed" | "bonus") => {
-    const nextUsage = { ...usage };
-
-    if (bucket === "anonymous") nextUsage.anonymousUses += 1;
-    if (bucket === "authed") nextUsage.authedUses += 1;
-    if (bucket === "bonus") {
-      nextUsage.bonusUses = Math.max(nextUsage.bonusUses - 1, 0);
-    }
-
-    setUsage(nextUsage);
-    writeUsageState(nextUsage);
-  };
+    return null;
+  }, [meta, bias]);
 
   const analyzeStock = async () => {
-    const gate = getGateStatus();
-
-    if (!gate.allowed || !gate.nextBucket) {
-      setError(gate.reason);
+    if (!ticker.trim()) {
+      setError("Enter a ticker.");
       return;
     }
 
@@ -280,6 +320,9 @@ export default function Home() {
     setError("");
     setResult("");
     setMeta(null);
+    setCopied(false);
+    setShowGoogleGate(false);
+    setShowPaywall(false);
 
     try {
       const anonymousUserId = ensureAnonymousUserId();
@@ -297,28 +340,40 @@ export default function Home() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Failed to analyze stock.");
+        const message = data.error || "Failed to analyze stock.";
+
+        if (res.status === 403) {
+          if (isSignedIn) {
+            setShowPaywall(true);
+          } else {
+            setShowGoogleGate(true);
+          }
+        }
+
+        throw new Error(message);
       }
 
-      setResult(data.result);
+      setResult(data.result ?? "");
       setMeta(data.meta ?? null);
-      consumeUse(gate.nextBucket);
-    } catch (err: any) {
-      setError(err.message || "Something went wrong.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Something went wrong.";
+      setError(message);
     } finally {
       setLoading(false);
     }
   };
 
-  const startBonusTimer = () => {
-    if (usage.bonusUses >= BONUS_USES_PER_DAY || watchingAd) return;
-    setWatchingAd(true);
-    setAdCountdown(AD_TIMER_SECONDS);
-  };
+  const handleCopy = async () => {
+    if (!result) return;
 
-  const gate = getGateStatus();
-  const needsGoogleGate = usage.anonymousUses >= ANON_FREE_USES && !isSignedIn;
-  const hitPaywall = !gate.allowed && isSignedIn && usage.bonusUses === 0;
+    try {
+      await navigator.clipboard.writeText(result);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setError("Could not copy analysis.");
+    }
+  };
 
   return (
     <main style={styles.main}>
@@ -327,23 +382,11 @@ export default function Home() {
           <div style={styles.heroText}>
             <h1 style={styles.title}>Swing Trade Analyzer</h1>
             <p style={styles.subtitle}>
-              1 free analysis with no login. Sign in after that to unlock 2 more today.
+              AI trade breakdowns with live options context and recent headlines.
             </p>
           </div>
 
-          <div style={styles.usagePill}>
-            <div>
-              <strong>Today:</strong> {usageSummary.totalUsed} used
-            </div>
-            <div>
-              <strong>Anonymous left:</strong> {usageSummary.anonymousRemaining}
-            </div>
-            <div>
-              <strong>Signed-in left:</strong> {usageSummary.authedRemaining}
-            </div>
-            <div>
-              <strong>Bonus left:</strong> {usageSummary.bonusRemaining}
-            </div>
+          <div style={styles.statusCard}>
             <div>
               <strong>Status:</strong>{" "}
               {status === "loading"
@@ -375,21 +418,22 @@ export default function Home() {
             onChange={(e) => setTicker(e.target.value.toUpperCase())}
             style={styles.input}
             autoFocus
+            disabled={loading || status === "loading"}
           />
           <button
             type="submit"
             disabled={loading || !ticker.trim() || status === "loading"}
             style={styles.button}
           >
-            {loading ? "Analyzing..." : "Analyze"}
+            {loading ? "Scanning options chain..." : "Analyze"}
           </button>
         </form>
 
-        {needsGoogleGate && (
+        {showGoogleGate && (
           <div style={styles.gateCard}>
-            <h2 style={styles.cardTitle}>Unlock 2 more free analyses today</h2>
+            <h2 style={styles.cardTitle}>Unlock more analyses</h2>
             <p style={styles.gateText}>
-              Your no-login freebie is gone. Continue with Google to unlock the next two.
+              Your no-login usage is tapped out. Continue with Google to unlock more.
             </p>
 
             <button onClick={() => signIn("google")} style={styles.googleButton}>
@@ -400,41 +444,19 @@ export default function Home() {
               />
               Continue with Google
             </button>
-
-            <p style={styles.helperText}>
-              We only use Google to sign you in. No spam, no nonsense. By continuing,
-              you agree to our Terms and Privacy Policy.
-            </p>
           </div>
         )}
 
-        {hitPaywall && (
+        {showPaywall && (
           <div style={styles.paywallCard}>
             <h2 style={styles.cardTitle}>Free limit reached</h2>
             <p style={styles.gateText}>
-              You’ve used your free analyses for today. Upgrade for unlimited analyses,
-              or unlock one bonus use.
+              You’ve used today’s free analyses. Upgrade to Pro when you’re ready.
             </p>
 
             <div style={styles.paywallActions}>
               <button style={styles.upgradeButton}>Upgrade to Pro</button>
-              <button
-                onClick={startBonusTimer}
-                disabled={watchingAd || usage.bonusUses >= BONUS_USES_PER_DAY}
-                style={styles.secondaryButton}
-              >
-                {watchingAd
-                  ? `Watching sponsor timer... ${adCountdown}s`
-                  : usage.bonusUses >= BONUS_USES_PER_DAY
-                    ? "Bonus already unlocked"
-                    : "Watch sponsor timer for +1"}
-              </button>
             </div>
-
-            <p style={styles.helperText}>
-              Replace the sponsor timer with a real rewarded ad later. For now this keeps
-              the flow testable.
-            </p>
           </div>
         )}
 
@@ -456,30 +478,69 @@ export default function Home() {
                 <strong>Selected Expiration:</strong> {meta.selectedExpiration}
               </div>
             )}
+            {bias && (
+              <div>
+                <strong>AI Bias:</strong> {bias}
+              </div>
+            )}
           </div>
         )}
 
-        {(meta?.liveBullPutSpread || meta?.liveBearCallSpread) && (
-          <div style={styles.spreadCardsWrapper}>
-            {meta?.liveBullPutSpread && (
-              <SpreadCard
-                title="Trade Idea: Bull Put Spread"
-                spread={meta.liveBullPutSpread}
-              />
-            )}
+        {meta?.recentHeadlines && meta.recentHeadlines.length > 0 && (
+          <div style={styles.headlinesCard}>
+            <h2 style={styles.cardTitle}>Recent Headlines</h2>
+            <div style={styles.headlinesList}>
+              {meta.recentHeadlines.map((item, index) => (
+                <a
+                  key={`${item.url}-${index}`}
+                  href={item.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={styles.headlineLink}
+                >
+                  <div style={styles.headlineTitle}>{item.headline}</div>
+                  <div style={styles.headlineSource}>{item.source}</div>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
 
-            {meta?.liveBearCallSpread && (
-              <SpreadCard
-                title="Trade Idea: Bear Call Spread"
-                spread={meta.liveBearCallSpread}
-              />
-            )}
+        {selectedTradeCard?.type === "bullPut" && (
+          <div style={styles.spreadCardsWrapper}>
+            <SpreadCard
+              title={selectedTradeCard.title}
+              spread={selectedTradeCard.spread}
+            />
+          </div>
+        )}
+
+        {selectedTradeCard?.type === "bearCall" && (
+          <div style={styles.spreadCardsWrapper}>
+            <SpreadCard
+              title={selectedTradeCard.title}
+              spread={selectedTradeCard.spread}
+            />
+          </div>
+        )}
+
+        {selectedTradeCard?.type === "ironCondor" && (
+          <div style={styles.spreadCardsWrapper}>
+            <IronCondorCard
+              title={selectedTradeCard.title}
+              spread={selectedTradeCard.spread}
+            />
           </div>
         )}
 
         {result && (
           <div style={styles.resultCard}>
-            <h2 style={styles.cardTitle}>AI Analysis</h2>
+            <div style={styles.resultHeader}>
+              <h2 style={styles.cardTitle}>Swing Trade Analysis</h2>
+              <button onClick={handleCopy} style={styles.copyButton}>
+                {copied ? "Copied" : "Copy analysis"}
+              </button>
+            </div>
             <pre style={styles.result}>{result}</pre>
           </div>
         )}
@@ -523,18 +584,18 @@ const styles: { [key: string]: React.CSSProperties } = {
     lineHeight: 1.5,
     maxWidth: "640px",
   },
-  usagePill: {
+  statusCard: {
     background: "#111827",
     border: "1px solid #334155",
     borderRadius: "14px",
     padding: "14px 16px",
     minWidth: "260px",
     display: "grid",
-    gap: "6px",
+    gap: "8px",
     boxShadow: "0 10px 30px rgba(0,0,0,0.18)",
   },
   signOutButton: {
-    marginTop: "8px",
+    marginTop: "4px",
     padding: "8px 12px",
     borderRadius: "8px",
     border: "1px solid #475569",
@@ -603,14 +664,14 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: "0.95rem",
     fontWeight: 700,
   },
-  secondaryButton: {
-    padding: "12px 18px",
-    borderRadius: "10px",
+  copyButton: {
+    padding: "8px 12px",
+    borderRadius: "8px",
     border: "1px solid #475569",
-    background: "#1e293b",
+    background: "#0f172a",
     color: "#e5e7eb",
     cursor: "pointer",
-    fontSize: "0.95rem",
+    fontSize: "0.9rem",
     fontWeight: 600,
   },
   error: {
@@ -656,6 +717,34 @@ const styles: { [key: string]: React.CSSProperties } = {
     gap: "20px",
     flexWrap: "wrap",
   },
+  headlinesCard: {
+    background: "#1e293b",
+    border: "1px solid #334155",
+    borderRadius: "14px",
+    padding: "16px",
+    marginBottom: "16px",
+  },
+  headlinesList: {
+    display: "grid",
+    gap: "10px",
+  },
+  headlineLink: {
+    display: "block",
+    padding: "12px",
+    borderRadius: "10px",
+    border: "1px solid #334155",
+    background: "#0f172a",
+    color: "#e5e7eb",
+    textDecoration: "none",
+  },
+  headlineTitle: {
+    fontWeight: 700,
+    marginBottom: "4px",
+  },
+  headlineSource: {
+    fontSize: "0.9rem",
+    color: "#94a3b8",
+  },
   spreadCardsWrapper: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
@@ -674,21 +763,22 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderRadius: "14px",
     padding: "16px",
   },
+  resultHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "12px",
+    flexWrap: "wrap",
+    marginBottom: "8px",
+  },
   cardTitle: {
     margin: 0,
-    marginBottom: "8px",
     fontSize: "1.2rem",
     color: "#ffffff",
   },
   gateText: {
     margin: 0,
     color: "#cbd5e1",
-    lineHeight: 1.6,
-  },
-  helperText: {
-    margin: 0,
-    fontSize: "0.9rem",
-    color: "#94a3b8",
     lineHeight: 1.6,
   },
   spreadGrid: {
