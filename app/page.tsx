@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { signIn, useSession } from "next-auth/react";
+import { signIn, signOut, useSession } from "next-auth/react";
 
 type LiveVerticalSpread = {
   strategyType: "Bull Put Spread" | "Bear Call Spread";
@@ -352,6 +352,12 @@ export default function Home() {
                   ? `Signed in as ${session?.user?.email ?? "user"}`
                   : "Not signed in"}
             </div>
+
+            {isSignedIn && (
+              <button onClick={() => signOut()} style={styles.signOutButton}>
+                Sign out
+              </button>
+            )}
           </div>
         </div>
 
@@ -396,8 +402,8 @@ export default function Home() {
             </button>
 
             <p style={styles.helperText}>
-              If this button does nothing, check your auth route, provider wrapper,
-              layout wrapper, env vars, redirect URI, and Google test-user setup.
+              We only use Google to sign you in. No spam, no nonsense. By continuing,
+              you agree to our Terms and Privacy Policy.
             </p>
           </div>
         )}
@@ -526,6 +532,17 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: "grid",
     gap: "6px",
     boxShadow: "0 10px 30px rgba(0,0,0,0.18)",
+  },
+  signOutButton: {
+    marginTop: "8px",
+    padding: "8px 12px",
+    borderRadius: "8px",
+    border: "1px solid #475569",
+    background: "transparent",
+    color: "#cbd5e1",
+    cursor: "pointer",
+    fontSize: "0.85rem",
+    justifySelf: "start",
   },
   searchRow: {
     display: "flex",
