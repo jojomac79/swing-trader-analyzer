@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type LiveVerticalSpread = {
   strategyType: "Bull Put Spread" | "Bear Call Spread";
@@ -28,6 +28,65 @@ type MetaData = {
   liveBullPutSpread?: LiveVerticalSpread | null;
   liveBearCallSpread?: LiveVerticalSpread | null;
 };
+
+type UsageState = {
+  date: string;
+  anonymousUses: number;
+  authedUses: number;
+  bonusUses: number;
+  mockGoogleAuthed: boolean;
+};
+
+const STORAGE_KEY = "swing-trade-usage-v1";
+const ANON_FREE_USES = 1;
+const AUTHED_FREE_USES = 2;
+const BONUS_USES_PER_DAY = 1;
+const AD_TIMER_SECONDS = 10;
+
+function getTodayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function getDefaultUsageState(): UsageState {
+  return {
+    date: getTodayKey(),
+    anonymousUses: 0,
+    authedUses: 0,
+    bonusUses: 0,
+    mockGoogleAuthed: false,
+  };
+}
+
+function readUsageState(): UsageState {
+  if (typeof window === "undefined") return getDefaultUsageState();
+
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return getDefaultUsageState();
+
+    const parsed = JSON.parse(raw) as Partial<UsageState>;
+    const today = getTodayKey();
+
+    if (parsed.date !== today) {
+      return getDefaultUsageState();
+    }
+
+    return {
+      date: today,
+      anonymousUses: parsed.anonymousUses ?? 0,
+      authedUses: parsed.authedUses ?? 0,
+      bonusUses: parsed.bonusUses ?? 0,
+      mockGoogleAuthed: parsed.mockGoogleAuthed ?? false,
+    };
+  } catch {
+    return getDefaultUsageState();
+  }
+}
+
+function writeUsageState(nextState: UsageState) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
+}
 
 function SpreadCard({
   title,
@@ -100,8 +159,106 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [meta, setMeta] = useState<MetaData | null>(null);
+  const [usage, setUsage] = useState<UsageState>(getDefaultUsageState());
+  const [watchingAd, setWatchingAd] = useState(false);
+  const [adCountdown, setAdCountdown] = useState(AD_TIMER_SECONDS);
+
+  useEffect(() => {
+    setUsage(readUsageState());
+  }, []);
+
+  useEffect(() => {
+    if (!watchingAd) return;
+
+    if (adCountdown <= 0) {
+      const nextUsage = {
+        ...usage,
+        bonusUses: Math.min(usage.bonusUses + 1, BONUS_USES_PER_DAY),
+      };
+      setUsage(nextUsage);
+      writeUsageState(nextUsage);
+      setWatchingAd(false);
+      setAdCountdown(AD_TIMER_SECONDS);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setAdCountdown((prev) => prev - 1);
+    }, 1000);
+
+    return () => window.clearTimeout(timer);
+  }, [watchingAd, adCountdown, usage]);
+
+  const usageSummary = useMemo(() => {
+    const anonymousRemaining = Math.max(ANON_FREE_USES - usage.anonymousUses, 0);
+    const authedRemaining = usage.mockGoogleAuthed
+      ? Math.max(AUTHED_FREE_USES - usage.authedUses, 0)
+      : AUTHED_FREE_USES;
+    const bonusRemaining = Math.max(BONUS_USES_PER_DAY - usage.bonusUses, 0);
+
+    return {
+      anonymousRemaining,
+      authedRemaining,
+      bonusRemaining,
+      totalUsed: usage.anonymousUses + usage.authedUses + usage.bonusUses,
+      totalFreeAllowed:
+        ANON_FREE_USES + (usage.mockGoogleAuthed ? AUTHED_FREE_USES : 0) + usage.bonusUses,
+    };
+  }, [usage]);
+
+  const getGateStatus = () => {
+    if (usage.anonymousUses < ANON_FREE_USES) {
+      return {
+        allowed: true,
+        nextBucket: "anonymous" as const,
+        reason: "Your first analysis today is free.",
+      };
+    }
+
+    if (usage.mockGoogleAuthed && usage.authedUses < AUTHED_FREE_USES) {
+      return {
+        allowed: true,
+        nextBucket: "authed" as const,
+        reason: "Signed-in free analyses are still available.",
+      };
+    }
+
+    if (usage.bonusUses > 0) {
+      return {
+        allowed: true,
+        nextBucket: "bonus" as const,
+        reason: "Your bonus analysis is available.",
+      };
+    }
+
+    return {
+      allowed: false,
+      nextBucket: null,
+      reason: usage.mockGoogleAuthed
+        ? "You hit today’s free limit. Upgrade for unlimited analyses."
+        : "Use your free analysis, then sign in with Google to unlock more.",
+    };
+  };
+
+  const consumeUse = (bucket: "anonymous" | "authed" | "bonus") => {
+    const nextUsage = { ...usage };
+
+    if (bucket === "anonymous") nextUsage.anonymousUses += 1;
+    if (bucket === "authed") nextUsage.authedUses += 1;
+    if (bucket === "bonus") nextUsage.bonusUses = Math.max(nextUsage.bonusUses - 1, 0);
+
+    setUsage(nextUsage);
+    writeUsageState(nextUsage);
+  };
 
   const analyzeStock = async () => {
+    const gate = getGateStatus();
+
+    if (!gate.allowed || !gate.nextBucket) {
+      setError(gate.reason);
+      return;
+    }
+
     setLoading(true);
     setError("");
     setResult("");
@@ -124,6 +281,7 @@ export default function Home() {
 
       setResult(data.result);
       setMeta(data.meta ?? null);
+      consumeUse(gate.nextBucket);
     } catch (err: any) {
       setError(err.message || "Something went wrong.");
     } finally {
@@ -131,10 +289,53 @@ export default function Home() {
     }
   };
 
+  const handleMockGoogleLogin = () => {
+    const nextUsage = {
+      ...usage,
+      mockGoogleAuthed: true,
+    };
+
+    setUsage(nextUsage);
+    writeUsageState(nextUsage);
+    setError("");
+  };
+
+  const startBonusTimer = () => {
+    if (usage.bonusUses >= BONUS_USES_PER_DAY || watchingAd) return;
+    setWatchingAd(true);
+    setAdCountdown(AD_TIMER_SECONDS);
+  };
+
+  const gate = getGateStatus();
+  const needsGoogleGate = usage.anonymousUses >= ANON_FREE_USES && !usage.mockGoogleAuthed;
+  const hitPaywall = !gate.allowed && usage.mockGoogleAuthed && usage.bonusUses === 0;
+
   return (
     <main style={styles.main}>
       <div style={styles.container}>
-        <h1 style={styles.title}>Swing Trade Analyzer</h1>
+        <div style={styles.heroRow}>
+          <div>
+            <h1 style={styles.title}>Swing Trade Analyzer</h1>
+            <p style={styles.subtitle}>
+              1 free analysis with no login. Sign in after that to unlock 2 more today.
+            </p>
+          </div>
+
+          <div style={styles.usagePill}>
+            <div>
+              <strong>Today:</strong> {usageSummary.totalUsed} used
+            </div>
+            <div>
+              <strong>Anonymous left:</strong> {usageSummary.anonymousRemaining}
+            </div>
+            <div>
+              <strong>Signed-in left:</strong> {usageSummary.authedRemaining}
+            </div>
+            <div>
+              <strong>Bonus left:</strong> {usageSummary.bonusRemaining}
+            </div>
+          </div>
+        </div>
 
         <div style={styles.searchRow}>
           <input
@@ -152,6 +353,50 @@ export default function Home() {
             {loading ? "Analyzing..." : "Analyze"}
           </button>
         </div>
+
+        {needsGoogleGate && (
+          <div style={styles.gateCard}>
+            <h2 style={styles.cardTitle}>Unlock 2 more free analyses today</h2>
+            <p style={styles.gateText}>
+              Your no-login freebie is gone. Continue with Google to unlock the next two.
+            </p>
+            <button onClick={handleMockGoogleLogin} style={styles.googleButton}>
+              Continue with Google
+            </button>
+            <p style={styles.helperText}>
+              Current code note: this button is wired as a local placeholder so you can test the gate flow right now.
+              Swap it to real Google auth next.
+            </p>
+          </div>
+        )}
+
+        {hitPaywall && (
+          <div style={styles.paywallCard}>
+            <h2 style={styles.cardTitle}>Free limit reached</h2>
+            <p style={styles.gateText}>
+              You’ve used your free analyses for today. Upgrade for unlimited analyses, or unlock one bonus use.
+            </p>
+
+            <div style={styles.paywallActions}>
+              <button style={styles.upgradeButton}>Upgrade to Pro</button>
+              <button
+                onClick={startBonusTimer}
+                disabled={watchingAd || usage.bonusUses >= BONUS_USES_PER_DAY}
+                style={styles.secondaryButton}
+              >
+                {watchingAd
+                  ? `Watching sponsor timer... ${adCountdown}s`
+                  : usage.bonusUses >= BONUS_USES_PER_DAY
+                  ? "Bonus already unlocked"
+                  : "Watch sponsor timer for +1"}
+              </button>
+            </div>
+
+            <p style={styles.helperText}>
+              Replace the sponsor timer with a real rewarded ad later. This keeps the UX and limit flow testable right now.
+            </p>
+          </div>
+        )}
 
         {error && <div style={styles.error}>{error}</div>}
 
@@ -206,7 +451,7 @@ export default function Home() {
 const styles: { [key: string]: React.CSSProperties } = {
   main: {
     minHeight: "100vh",
-    background: "#0f172a", // dark background
+    background: "#0f172a",
     padding: "32px 16px",
     fontFamily: "Arial, sans-serif",
     color: "#e5e7eb",
@@ -215,10 +460,31 @@ const styles: { [key: string]: React.CSSProperties } = {
     maxWidth: "1000px",
     margin: "0 auto",
   },
+  heroRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: "16px",
+    marginBottom: "20px",
+    alignItems: "flex-start",
+    flexWrap: "wrap",
+  },
   title: {
     fontSize: "2rem",
-    marginBottom: "20px",
+    marginBottom: "8px",
     color: "#ffffff",
+  },
+  subtitle: {
+    marginTop: 0,
+    color: "#cbd5e1",
+  },
+  usagePill: {
+    background: "#111827",
+    border: "1px solid #334155",
+    borderRadius: "12px",
+    padding: "14px 16px",
+    minWidth: "240px",
+    display: "grid",
+    gap: "6px",
   },
   searchRow: {
     display: "flex",
@@ -238,10 +504,40 @@ const styles: { [key: string]: React.CSSProperties } = {
     padding: "12px 18px",
     borderRadius: "8px",
     border: "none",
-    background: "#22c55e", // green
+    background: "#22c55e",
     color: "#000",
     cursor: "pointer",
     fontSize: "1rem",
+    fontWeight: 600,
+  },
+  googleButton: {
+    padding: "12px 18px",
+    borderRadius: "10px",
+    border: "1px solid #475569",
+    background: "#ffffff",
+    color: "#111827",
+    cursor: "pointer",
+    fontSize: "0.95rem",
+    fontWeight: 700,
+  },
+  upgradeButton: {
+    padding: "12px 18px",
+    borderRadius: "10px",
+    border: "none",
+    background: "#f59e0b",
+    color: "#111827",
+    cursor: "pointer",
+    fontSize: "0.95rem",
+    fontWeight: 700,
+  },
+  secondaryButton: {
+    padding: "12px 18px",
+    borderRadius: "10px",
+    border: "1px solid #475569",
+    background: "#1e293b",
+    color: "#e5e7eb",
+    cursor: "pointer",
+    fontSize: "0.95rem",
     fontWeight: 600,
   },
   error: {
@@ -250,6 +546,40 @@ const styles: { [key: string]: React.CSSProperties } = {
     padding: "12px",
     borderRadius: "8px",
     marginBottom: "16px",
+  },
+  gateCard: {
+    background: "#132035",
+    border: "1px solid #334155",
+    borderRadius: "12px",
+    padding: "16px",
+    marginBottom: "16px",
+    display: "grid",
+    gap: "12px",
+  },
+  paywallCard: {
+    background: "#1f2937",
+    border: "1px solid #475569",
+    borderRadius: "12px",
+    padding: "16px",
+    marginBottom: "16px",
+    display: "grid",
+    gap: "12px",
+  },
+  paywallActions: {
+    display: "flex",
+    gap: "12px",
+    flexWrap: "wrap",
+  },
+  gateText: {
+    margin: 0,
+    color: "#cbd5e1",
+    lineHeight: 1.5,
+  },
+  helperText: {
+    margin: 0,
+    fontSize: "0.9rem",
+    color: "#94a3b8",
+    lineHeight: 1.5,
   },
   metaCard: {
     background: "#1e293b",
@@ -281,7 +611,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   cardTitle: {
     marginTop: 0,
-    marginBottom: "14px",
+    marginBottom: "8px",
     fontSize: "1.2rem",
     color: "#ffffff",
   },
