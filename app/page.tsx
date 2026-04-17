@@ -349,28 +349,35 @@ export default function Home() {
               {status === "loading"
                 ? "Checking sign-in..."
                 : isSignedIn
-                ? `Signed in as ${session?.user?.email ?? "user"}`
-                : "Not signed in"}
+                  ? `Signed in as ${session?.user?.email ?? "user"}`
+                  : "Not signed in"}
             </div>
           </div>
         </div>
 
-        <div style={styles.searchRow}>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            analyzeStock();
+          }}
+          style={styles.searchRow}
+        >
           <input
             type="text"
             placeholder="Ticker (e.g. AAPL)"
             value={ticker}
             onChange={(e) => setTicker(e.target.value.toUpperCase())}
             style={styles.input}
+            autoFocus
           />
           <button
-            onClick={analyzeStock}
+            type="submit"
             disabled={loading || !ticker.trim() || status === "loading"}
             style={styles.button}
           >
             {loading ? "Analyzing..." : "Analyze"}
           </button>
-        </div>
+        </form>
 
         {needsGoogleGate && (
           <div style={styles.gateCard}>
@@ -413,8 +420,8 @@ export default function Home() {
                 {watchingAd
                   ? `Watching sponsor timer... ${adCountdown}s`
                   : usage.bonusUses >= BONUS_USES_PER_DAY
-                  ? "Bonus already unlocked"
-                  : "Watch sponsor timer for +1"}
+                    ? "Bonus already unlocked"
+                    : "Watch sponsor timer for +1"}
               </button>
             </div>
 
