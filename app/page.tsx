@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { signIn, useSession } from "next-auth/react";
 
 type LiveVerticalSpread = {
   strategyType: "Bull Put Spread" | "Bear Call Spread";
@@ -34,7 +35,6 @@ type UsageState = {
   anonymousUses: number;
   authedUses: number;
   bonusUses: number;
-  mockGoogleAuthed: boolean;
 };
 
 const STORAGE_KEY = "swing-trade-usage-v1";
@@ -54,11 +54,10 @@ function getDefaultUsageState(): UsageState {
     anonymousUses: 0,
     authedUses: 0,
     bonusUses: 0,
-    mockGoogleAuthed: false,
   };
 }
 
-function ensureUserId(): string {
+function ensureAnonymousUserId(): string {
   if (typeof window === "undefined") return "";
 
   let userId = window.localStorage.getItem(USER_ID_KEY);
@@ -90,7 +89,6 @@ function readUsageState(): UsageState {
       anonymousUses: parsed.anonymousUses ?? 0,
       authedUses: parsed.authedUses ?? 0,
       bonusUses: parsed.bonusUses ?? 0,
-      mockGoogleAuthed: parsed.mockGoogleAuthed ?? false,
     };
   } catch {
     return getDefaultUsageState();
@@ -168,6 +166,10 @@ function SpreadCard({
 }
 
 export default function Home() {
+  const { data: session, status } = useSession();
+  const isSignedIn = !!session?.user;
+  const signedInUserId = session?.user?.email ?? "";
+
   const [ticker, setTicker] = useState("");
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
@@ -178,7 +180,7 @@ export default function Home() {
   const [adCountdown, setAdCountdown] = useState(AD_TIMER_SECONDS);
 
   useEffect(() => {
-    ensureUserId();
+    ensureAnonymousUserId();
     setUsage(readUsageState());
   }, []);
 
@@ -206,7 +208,7 @@ export default function Home() {
 
   const usageSummary = useMemo(() => {
     const anonymousRemaining = Math.max(ANON_FREE_USES - usage.anonymousUses, 0);
-    const authedRemaining = usage.mockGoogleAuthed
+    const authedRemaining = isSignedIn
       ? Math.max(AUTHED_FREE_USES - usage.authedUses, 0)
       : AUTHED_FREE_USES;
     const bonusRemaining = Math.max(BONUS_USES_PER_DAY - usage.bonusUses, 0);
@@ -216,12 +218,8 @@ export default function Home() {
       authedRemaining,
       bonusRemaining,
       totalUsed: usage.anonymousUses + usage.authedUses + usage.bonusUses,
-      totalFreeAllowed:
-        ANON_FREE_USES +
-        (usage.mockGoogleAuthed ? AUTHED_FREE_USES : 0) +
-        usage.bonusUses,
     };
-  }, [usage]);
+  }, [usage, isSignedIn]);
 
   const getGateStatus = () => {
     if (usage.anonymousUses < ANON_FREE_USES) {
@@ -232,7 +230,7 @@ export default function Home() {
       };
     }
 
-    if (usage.mockGoogleAuthed && usage.authedUses < AUTHED_FREE_USES) {
+    if (isSignedIn && usage.authedUses < AUTHED_FREE_USES) {
       return {
         allowed: true,
         nextBucket: "authed" as const,
@@ -251,7 +249,7 @@ export default function Home() {
     return {
       allowed: false,
       nextBucket: null,
-      reason: usage.mockGoogleAuthed
+      reason: isSignedIn
         ? "You hit today’s free limit. Upgrade for unlimited analyses."
         : "Use your free analysis, then sign in with Google to unlock more.",
     };
@@ -262,7 +260,9 @@ export default function Home() {
 
     if (bucket === "anonymous") nextUsage.anonymousUses += 1;
     if (bucket === "authed") nextUsage.authedUses += 1;
-    if (bucket === "bonus") nextUsage.bonusUses = Math.max(nextUsage.bonusUses - 1, 0);
+    if (bucket === "bonus") {
+      nextUsage.bonusUses = Math.max(nextUsage.bonusUses - 1, 0);
+    }
 
     setUsage(nextUsage);
     writeUsageState(nextUsage);
@@ -282,7 +282,8 @@ export default function Home() {
     setMeta(null);
 
     try {
-      const userId = ensureUserId();
+      const anonymousUserId = ensureAnonymousUserId();
+      const userId = isSignedIn && signedInUserId ? signedInUserId : anonymousUserId;
 
       const res = await fetch("/api/analyze", {
         method: "POST",
@@ -309,19 +310,6 @@ export default function Home() {
     }
   };
 
-  const handleMockGoogleLogin = () => {
-    ensureUserId();
-
-    const nextUsage = {
-      ...usage,
-      mockGoogleAuthed: true,
-    };
-
-    setUsage(nextUsage);
-    writeUsageState(nextUsage);
-    setError("");
-  };
-
   const startBonusTimer = () => {
     if (usage.bonusUses >= BONUS_USES_PER_DAY || watchingAd) return;
     setWatchingAd(true);
@@ -329,14 +317,14 @@ export default function Home() {
   };
 
   const gate = getGateStatus();
-  const needsGoogleGate = usage.anonymousUses >= ANON_FREE_USES && !usage.mockGoogleAuthed;
-  const hitPaywall = !gate.allowed && usage.mockGoogleAuthed && usage.bonusUses === 0;
+  const needsGoogleGate = usage.anonymousUses >= ANON_FREE_USES && !isSignedIn;
+  const hitPaywall = !gate.allowed && isSignedIn && usage.bonusUses === 0;
 
   return (
     <main style={styles.main}>
       <div style={styles.container}>
         <div style={styles.heroRow}>
-          <div>
+          <div style={styles.heroText}>
             <h1 style={styles.title}>Swing Trade Analyzer</h1>
             <p style={styles.subtitle}>
               1 free analysis with no login. Sign in after that to unlock 2 more today.
@@ -356,6 +344,14 @@ export default function Home() {
             <div>
               <strong>Bonus left:</strong> {usageSummary.bonusRemaining}
             </div>
+            <div>
+              <strong>Status:</strong>{" "}
+              {status === "loading"
+                ? "Checking sign-in..."
+                : isSignedIn
+                ? `Signed in as ${session?.user?.email ?? "user"}`
+                : "Not signed in"}
+            </div>
           </div>
         </div>
 
@@ -369,7 +365,7 @@ export default function Home() {
           />
           <button
             onClick={analyzeStock}
-            disabled={loading || !ticker.trim()}
+            disabled={loading || !ticker.trim() || status === "loading"}
             style={styles.button}
           >
             {loading ? "Analyzing..." : "Analyze"}
@@ -382,12 +378,19 @@ export default function Home() {
             <p style={styles.gateText}>
               Your no-login freebie is gone. Continue with Google to unlock the next two.
             </p>
-            <button onClick={handleMockGoogleLogin} style={styles.googleButton}>
+
+            <button onClick={() => signIn("google")} style={styles.googleButton}>
+              <img
+                src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+                alt="Google"
+                style={styles.googleIcon}
+              />
               Continue with Google
             </button>
+
             <p style={styles.helperText}>
-              Current code note: this button is still a local placeholder for testing the gate flow.
-              Swap it to real Google auth next.
+              If this button does nothing, check your auth route, provider wrapper,
+              layout wrapper, env vars, redirect URI, and Google test-user setup.
             </p>
           </div>
         )}
@@ -396,7 +399,8 @@ export default function Home() {
           <div style={styles.paywallCard}>
             <h2 style={styles.cardTitle}>Free limit reached</h2>
             <p style={styles.gateText}>
-              You’ve used your free analyses for today. Upgrade for unlimited analyses, or unlock one bonus use.
+              You’ve used your free analyses for today. Upgrade for unlimited analyses,
+              or unlock one bonus use.
             </p>
 
             <div style={styles.paywallActions}>
@@ -415,7 +419,8 @@ export default function Home() {
             </div>
 
             <p style={styles.helperText}>
-              Replace the sponsor timer with a real rewarded ad later. For now this keeps the flow testable.
+              Replace the sponsor timer with a real rewarded ad later. For now this keeps
+              the flow testable.
             </p>
           </div>
         )}
@@ -473,74 +478,96 @@ export default function Home() {
 const styles: { [key: string]: React.CSSProperties } = {
   main: {
     minHeight: "100vh",
-    background: "#0f172a",
-    padding: "32px 16px",
-    fontFamily: "Arial, sans-serif",
+    padding: "40px 16px",
     color: "#e5e7eb",
   },
   container: {
-    maxWidth: "1000px",
+    maxWidth: "1040px",
     margin: "0 auto",
   },
   heroRow: {
     display: "flex",
     justifyContent: "space-between",
-    gap: "16px",
-    marginBottom: "20px",
     alignItems: "flex-start",
+    gap: "16px",
     flexWrap: "wrap",
+    marginBottom: "24px",
+  },
+  heroText: {
+    flex: 1,
+    minWidth: "280px",
   },
   title: {
-    fontSize: "2rem",
-    marginBottom: "8px",
+    margin: 0,
+    fontSize: "2.1rem",
+    lineHeight: 1.1,
     color: "#ffffff",
   },
   subtitle: {
-    marginTop: 0,
+    marginTop: "10px",
+    marginBottom: 0,
     color: "#cbd5e1",
+    lineHeight: 1.5,
+    maxWidth: "640px",
   },
   usagePill: {
     background: "#111827",
     border: "1px solid #334155",
-    borderRadius: "12px",
+    borderRadius: "14px",
     padding: "14px 16px",
-    minWidth: "240px",
+    minWidth: "260px",
     display: "grid",
     gap: "6px",
+    boxShadow: "0 10px 30px rgba(0,0,0,0.18)",
   },
   searchRow: {
     display: "flex",
     gap: "10px",
     marginBottom: "20px",
+    flexWrap: "wrap",
   },
   input: {
     flex: 1,
-    padding: "12px",
+    minWidth: "240px",
+    padding: "12px 14px",
     fontSize: "1rem",
     border: "1px solid #334155",
-    borderRadius: "8px",
+    borderRadius: "10px",
     background: "#1e293b",
     color: "#fff",
+    outline: "none",
   },
   button: {
     padding: "12px 18px",
-    borderRadius: "8px",
+    borderRadius: "10px",
     border: "none",
     background: "#22c55e",
-    color: "#000",
+    color: "#04130a",
     cursor: "pointer",
     fontSize: "1rem",
-    fontWeight: 600,
+    fontWeight: 700,
+    minWidth: "120px",
   },
   googleButton: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "10px",
+    alignSelf: "flex-start",
     padding: "12px 18px",
     borderRadius: "10px",
-    border: "1px solid #475569",
+    border: "1px solid #cbd5e1",
     background: "#ffffff",
     color: "#111827",
     cursor: "pointer",
     fontSize: "0.95rem",
     fontWeight: 700,
+  },
+  googleIcon: {
+    width: "18px",
+    height: "18px",
+    display: "block",
+    flexShrink: 0,
   },
   upgradeButton: {
     padding: "12px 18px",
@@ -565,48 +592,40 @@ const styles: { [key: string]: React.CSSProperties } = {
   error: {
     background: "#7f1d1d",
     color: "#fecaca",
-    padding: "12px",
-    borderRadius: "8px",
+    padding: "12px 14px",
+    borderRadius: "10px",
     marginBottom: "16px",
+    border: "1px solid #991b1b",
   },
   gateCard: {
     background: "#132035",
     border: "1px solid #334155",
-    borderRadius: "12px",
-    padding: "16px",
+    borderRadius: "14px",
+    padding: "18px",
     marginBottom: "16px",
     display: "grid",
     gap: "12px",
+    boxShadow: "0 10px 30px rgba(0,0,0,0.18)",
   },
   paywallCard: {
     background: "#1f2937",
     border: "1px solid #475569",
-    borderRadius: "12px",
-    padding: "16px",
+    borderRadius: "14px",
+    padding: "18px",
     marginBottom: "16px",
     display: "grid",
     gap: "12px",
+    boxShadow: "0 10px 30px rgba(0,0,0,0.18)",
   },
   paywallActions: {
     display: "flex",
     gap: "12px",
     flexWrap: "wrap",
   },
-  gateText: {
-    margin: 0,
-    color: "#cbd5e1",
-    lineHeight: 1.5,
-  },
-  helperText: {
-    margin: 0,
-    fontSize: "0.9rem",
-    color: "#94a3b8",
-    lineHeight: 1.5,
-  },
   metaCard: {
     background: "#1e293b",
     border: "1px solid #334155",
-    borderRadius: "12px",
+    borderRadius: "14px",
     padding: "16px",
     marginBottom: "16px",
     display: "flex",
@@ -622,20 +641,31 @@ const styles: { [key: string]: React.CSSProperties } = {
   spreadCard: {
     background: "#1e293b",
     border: "1px solid #334155",
-    borderRadius: "12px",
+    borderRadius: "14px",
     padding: "16px",
   },
   resultCard: {
     background: "#1e293b",
     border: "1px solid #334155",
-    borderRadius: "12px",
+    borderRadius: "14px",
     padding: "16px",
   },
   cardTitle: {
-    marginTop: 0,
+    margin: 0,
     marginBottom: "8px",
     fontSize: "1.2rem",
     color: "#ffffff",
+  },
+  gateText: {
+    margin: 0,
+    color: "#cbd5e1",
+    lineHeight: 1.6,
+  },
+  helperText: {
+    margin: 0,
+    fontSize: "0.9rem",
+    color: "#94a3b8",
+    lineHeight: 1.6,
   },
   spreadGrid: {
     display: "grid",
@@ -652,8 +682,9 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   result: {
     whiteSpace: "pre-wrap",
-    lineHeight: 1.6,
+    lineHeight: 1.7,
     margin: 0,
     color: "#e5e7eb",
+    fontSize: "0.98rem",
   },
 };

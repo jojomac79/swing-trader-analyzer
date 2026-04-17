@@ -391,7 +391,7 @@ export async function POST(req: Request) {
     }
 
     // 📅 DAILY LIMIT LOGIC
-    const today = new Date().toISOString().slice(0, 10);
+    const todayKey = new Date().toISOString().slice(0, 10);
 
     // 🧠 TEMP IN-MEMORY STORAGE (replace with DB later)
     // @ts-ignore
@@ -401,12 +401,12 @@ export async function POST(req: Request) {
     let userData = globalThis.usage[userId];
 
     if (!userData) {
-      userData = { date: today, count: 0 };
+      userData = { date: todayKey, count: 0 };
     }
 
     // reset daily
-    if (userData.date !== today) {
-      userData.date = today;
+    if (userData.date !== todayKey) {
+      userData.date = todayKey;
       userData.count = 0;
     }
 
