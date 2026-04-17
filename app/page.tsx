@@ -38,6 +38,7 @@ type UsageState = {
 };
 
 const STORAGE_KEY = "swing-trade-usage-v1";
+const USER_ID_KEY = "swing-trade-user-id";
 const ANON_FREE_USES = 1;
 const AUTHED_FREE_USES = 2;
 const BONUS_USES_PER_DAY = 1;
@@ -55,6 +56,19 @@ function getDefaultUsageState(): UsageState {
     bonusUses: 0,
     mockGoogleAuthed: false,
   };
+}
+
+function ensureUserId(): string {
+  if (typeof window === "undefined") return "";
+
+  let userId = window.localStorage.getItem(USER_ID_KEY);
+
+  if (!userId) {
+    userId = crypto.randomUUID();
+    window.localStorage.setItem(USER_ID_KEY, userId);
+  }
+
+  return userId;
 }
 
 function readUsageState(): UsageState {
@@ -164,6 +178,7 @@ export default function Home() {
   const [adCountdown, setAdCountdown] = useState(AD_TIMER_SECONDS);
 
   useEffect(() => {
+    ensureUserId();
     setUsage(readUsageState());
   }, []);
 
@@ -202,7 +217,9 @@ export default function Home() {
       bonusRemaining,
       totalUsed: usage.anonymousUses + usage.authedUses + usage.bonusUses,
       totalFreeAllowed:
-        ANON_FREE_USES + (usage.mockGoogleAuthed ? AUTHED_FREE_USES : 0) + usage.bonusUses,
+        ANON_FREE_USES +
+        (usage.mockGoogleAuthed ? AUTHED_FREE_USES : 0) +
+        usage.bonusUses,
     };
   }, [usage]);
 
@@ -265,10 +282,13 @@ export default function Home() {
     setMeta(null);
 
     try {
+      const userId = ensureUserId();
+
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "x-user-id": userId,
         },
         body: JSON.stringify({ ticker }),
       });
@@ -290,6 +310,8 @@ export default function Home() {
   };
 
   const handleMockGoogleLogin = () => {
+    ensureUserId();
+
     const nextUsage = {
       ...usage,
       mockGoogleAuthed: true,
@@ -364,7 +386,7 @@ export default function Home() {
               Continue with Google
             </button>
             <p style={styles.helperText}>
-              Current code note: this button is wired as a local placeholder so you can test the gate flow right now.
+              Current code note: this button is still a local placeholder for testing the gate flow.
               Swap it to real Google auth next.
             </p>
           </div>
@@ -393,7 +415,7 @@ export default function Home() {
             </div>
 
             <p style={styles.helperText}>
-              Replace the sponsor timer with a real rewarded ad later. This keeps the UX and limit flow testable right now.
+              Replace the sponsor timer with a real rewarded ad later. For now this keeps the flow testable.
             </p>
           </div>
         )}

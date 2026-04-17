@@ -380,6 +380,49 @@ IMPORTANT:
 
 export async function POST(req: Request) {
   try {
+    // 🔐 USER IDENTIFICATION (simple version)
+    const userId = req.headers.get("x-user-id");
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Please continue with Google to keep using the analyzer." },
+        { status: 401 }
+      );
+    }
+
+    // 📅 DAILY LIMIT LOGIC
+    const today = new Date().toISOString().slice(0, 10);
+
+    // 🧠 TEMP IN-MEMORY STORAGE (replace with DB later)
+    // @ts-ignore
+    globalThis.usage = globalThis.usage || {};
+
+    // @ts-ignore
+    let userData = globalThis.usage[userId];
+
+    if (!userData) {
+      userData = { date: today, count: 0 };
+    }
+
+    // reset daily
+    if (userData.date !== today) {
+      userData.date = today;
+      userData.count = 0;
+    }
+
+    // 🚫 LIMIT HIT
+    if (userData.count >= 3) {
+      return NextResponse.json(
+        { error: "Daily limit reached. Upgrade for unlimited access." },
+        { status: 403 }
+      );
+    }
+
+    // ✅ INCREMENT USAGE
+    userData.count += 1;
+
+    // @ts-ignore
+    globalThis.usage[userId] = userData;
     const { ticker } = await req.json();
 
     if (!ticker || typeof ticker !== "string") {
