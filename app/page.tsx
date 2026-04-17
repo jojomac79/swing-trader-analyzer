@@ -206,9 +206,10 @@ export default function Home() {
 const styles: { [key: string]: React.CSSProperties } = {
   main: {
     minHeight: "100vh",
-    background: "#f5f5f5",
+    background: "#0f172a", // dark background
     padding: "32px 16px",
     fontFamily: "Arial, sans-serif",
+    color: "#e5e7eb",
   },
   container: {
     maxWidth: "1000px",
@@ -217,6 +218,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   title: {
     fontSize: "2rem",
     marginBottom: "20px",
+    color: "#ffffff",
   },
   searchRow: {
     display: "flex",
@@ -227,28 +229,31 @@ const styles: { [key: string]: React.CSSProperties } = {
     flex: 1,
     padding: "12px",
     fontSize: "1rem",
-    border: "1px solid #ccc",
+    border: "1px solid #334155",
     borderRadius: "8px",
+    background: "#1e293b",
+    color: "#fff",
   },
   button: {
     padding: "12px 18px",
     borderRadius: "8px",
     border: "none",
-    background: "#111",
-    color: "#fff",
+    background: "#22c55e", // green
+    color: "#000",
     cursor: "pointer",
     fontSize: "1rem",
+    fontWeight: 600,
   },
   error: {
-    background: "#ffe5e5",
-    color: "#b00020",
+    background: "#7f1d1d",
+    color: "#fecaca",
     padding: "12px",
     borderRadius: "8px",
     marginBottom: "16px",
   },
   metaCard: {
-    background: "#fff",
-    border: "1px solid #e5e5e5",
+    background: "#1e293b",
+    border: "1px solid #334155",
     borderRadius: "12px",
     padding: "16px",
     marginBottom: "16px",
@@ -263,14 +268,14 @@ const styles: { [key: string]: React.CSSProperties } = {
     marginBottom: "16px",
   },
   spreadCard: {
-    background: "#fff",
-    border: "1px solid #e5e5e5",
+    background: "#1e293b",
+    border: "1px solid #334155",
     borderRadius: "12px",
     padding: "16px",
   },
   resultCard: {
-    background: "#fff",
-    border: "1px solid #e5e5e5",
+    background: "#1e293b",
+    border: "1px solid #334155",
     borderRadius: "12px",
     padding: "16px",
   },
@@ -278,6 +283,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     marginTop: 0,
     marginBottom: "14px",
     fontSize: "1.2rem",
+    color: "#ffffff",
   },
   spreadGrid: {
     display: "grid",
@@ -290,11 +296,12 @@ const styles: { [key: string]: React.CSSProperties } = {
     gap: "24px",
     flexWrap: "wrap",
     paddingTop: "12px",
-    borderTop: "1px solid #eee",
+    borderTop: "1px solid #334155",
   },
   result: {
     whiteSpace: "pre-wrap",
     lineHeight: 1.6,
     margin: 0,
+    color: "#e5e7eb",
   },
 };
