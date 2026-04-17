@@ -463,14 +463,14 @@ export default function Home() {
           <div style={styles.spreadCardsWrapper}>
             {meta?.liveBullPutSpread && (
               <SpreadCard
-                title="Live Bull Put Spread"
+                title="Trade Idea: Bull Put Spread"
                 spread={meta.liveBullPutSpread}
               />
             )}
 
             {meta?.liveBearCallSpread && (
               <SpreadCard
-                title="Live Bear Call Spread"
+                title="Trade Idea: Bear Call Spread"
                 spread={meta.liveBearCallSpread}
               />
             )}
