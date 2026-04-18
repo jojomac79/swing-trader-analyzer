@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 
-type LiveVerticalSpread = {
+type LiveCreditSpread = {
   strategyType: "Bull Put Spread" | "Bear Call Spread";
   expiration: string;
   shortStrike: number;
@@ -15,6 +15,24 @@ type LiveVerticalSpread = {
   shortMid: number;
   longMid: number;
   netCredit: number;
+  width: number;
+  maxProfit: number;
+  maxLoss: number;
+  breakeven: number;
+};
+
+type LiveDebitSpread = {
+  strategyType: "Call Debit Spread" | "Put Debit Spread";
+  expiration: string;
+  longStrike: number;
+  shortStrike: number;
+  longBid: number;
+  longAsk: number;
+  shortBid: number;
+  shortAsk: number;
+  longMid: number;
+  shortMid: number;
+  netDebit: number;
   width: number;
   maxProfit: number;
   maxLoss: number;
@@ -38,6 +56,31 @@ type LiveIronCondor = {
   upperBreakeven: number;
 };
 
+type LiveDiagonalSpread = {
+  strategyType: "Call Diagonal" | "Put Diagonal";
+  nearExpiration: string;
+  farExpiration: string;
+  longStrike: number;
+  shortStrike: number;
+  longBid: number;
+  longAsk: number;
+  shortBid: number;
+  shortAsk: number;
+  longMid: number;
+  shortMid: number;
+  netDebit: number;
+};
+
+type LiveLongOption = {
+  strategyType: "Long Call" | "Long Put";
+  expiration: string;
+  strike: number;
+  bid: number;
+  ask: number;
+  mid: number;
+  maxRisk: number;
+};
+
 type HeadlineItem = {
   headline: string;
   source: string;
@@ -46,31 +89,33 @@ type HeadlineItem = {
 
 type MetaData = {
   symbol?: string;
+  originalInput?: string;
+  resolvedFromName?: boolean;
+  resolvedDisplayName?: string | null;
   currentPrice?: string;
   nextEarnings?: string;
-  selectedExpiration?: string;
-  liveBullPutSpread?: LiveVerticalSpread | null;
-  liveBearCallSpread?: LiveVerticalSpread | null;
+  nearExpiration?: string;
+  farExpiration?: string | null;
+  liveCallDebit?: LiveDebitSpread | null;
+  livePutDebit?: LiveDebitSpread | null;
+  liveBullPut?: LiveCreditSpread | null;
+  liveBearCall?: LiveCreditSpread | null;
+  liveCallDiagonal?: LiveDiagonalSpread | null;
+  livePutDiagonal?: LiveDiagonalSpread | null;
   liveIronCondor?: LiveIronCondor | null;
+  liveLongCall?: LiveLongOption | null;
+  liveLongPut?: LiveLongOption | null;
   recentHeadlines?: HeadlineItem[];
 };
 
 type SelectedTradeCard =
-  | {
-      type: "bullPut";
-      title: string;
-      spread: LiveVerticalSpread;
-    }
-  | {
-      type: "bearCall";
-      title: string;
-      spread: LiveVerticalSpread;
-    }
-  | {
-      type: "ironCondor";
-      title: string;
-      spread: LiveIronCondor;
-    }
+  | { type: "callDebit"; spread: LiveDebitSpread }
+  | { type: "putDebit"; spread: LiveDebitSpread }
+  | { type: "bullPut"; spread: LiveCreditSpread }
+  | { type: "bearCall"; spread: LiveCreditSpread }
+  | { type: "callDiagonal"; spread: LiveDiagonalSpread }
+  | { type: "putDiagonal"; spread: LiveDiagonalSpread }
+  | { type: "ironCondor"; spread: LiveIronCondor }
   | null;
 
 const USER_ID_KEY = "swing-trade-user-id";
@@ -114,23 +159,72 @@ function getBiasFromResult(result: string): "Bullish" | "Bearish" | "Neutral" | 
   return null;
 }
 
-function SpreadCard({
-  title,
-  spread,
-}: {
-  title: string;
-  spread: LiveVerticalSpread;
-}) {
+function getPreferredStrategy(result: string): string | null {
+  if (!result) return null;
+
+  const match = result.match(
+    /Preferred Strategy:\s*-\s*(Call Debit Spread|Put Debit Spread|Bull Put Spread|Bear Call Spread|Call Diagonal|Put Diagonal|Iron Condor|No Trade)/i
+  );
+
+  return match?.[1] ?? null;
+}
+
+function getAltTradeText(result: string): string | null {
+  if (!result) return null;
+
+  const match = result.match(/Alt Trade Idea \(max risk\):\s*-\s*([^\n]+)/i);
+  return match?.[1]?.trim() ?? null;
+}
+
+function pickFallbackTrade(
+  meta: MetaData,
+  bias: "Bullish" | "Bearish" | "Neutral" | null
+): SelectedTradeCard {
+  if (bias === "Bullish") {
+    if (meta.liveCallDebit) return { type: "callDebit", spread: meta.liveCallDebit };
+    if (meta.liveBullPut) return { type: "bullPut", spread: meta.liveBullPut };
+    if (meta.liveCallDiagonal) return { type: "callDiagonal", spread: meta.liveCallDiagonal };
+  }
+
+  if (bias === "Bearish") {
+    if (meta.livePutDebit) return { type: "putDebit", spread: meta.livePutDebit };
+    if (meta.liveBearCall) return { type: "bearCall", spread: meta.liveBearCall };
+    if (meta.livePutDiagonal) return { type: "putDiagonal", spread: meta.livePutDiagonal };
+  }
+
+  if (bias === "Neutral") {
+    if (meta.liveIronCondor) return { type: "ironCondor", spread: meta.liveIronCondor };
+  }
+
+  if (meta.liveCallDebit) return { type: "callDebit", spread: meta.liveCallDebit };
+  if (meta.livePutDebit) return { type: "putDebit", spread: meta.livePutDebit };
+  if (meta.liveBullPut) return { type: "bullPut", spread: meta.liveBullPut };
+  if (meta.liveBearCall) return { type: "bearCall", spread: meta.liveBearCall };
+  if (meta.liveCallDiagonal) return { type: "callDiagonal", spread: meta.liveCallDiagonal };
+  if (meta.livePutDiagonal) return { type: "putDiagonal", spread: meta.livePutDiagonal };
+  if (meta.liveIronCondor) return { type: "ironCondor", spread: meta.liveIronCondor };
+
+  return null;
+}
+
+function pickAltTrade(
+  meta: MetaData,
+  bias: "Bullish" | "Bearish" | "Neutral" | null
+): LiveLongOption | null {
+  if (bias === "Bullish" && meta.liveLongCall) return meta.liveLongCall;
+  if (bias === "Bearish" && meta.liveLongPut) return meta.liveLongPut;
+  return null;
+}
+
+function DebitCard({ spread }: { spread: LiveDebitSpread }) {
+  const longLabel = spread.strategyType === "Call Debit Spread" ? "Long Call" : "Long Put";
   const shortLabel =
-    spread.strategyType === "Bull Put Spread" ? "Short Put" : "Short Call";
-  const longLabel =
-    spread.strategyType === "Bull Put Spread" ? "Long Put" : "Long Call";
+    spread.strategyType === "Call Debit Spread" ? "Short Call" : "Short Put";
 
   return (
-    <div style={styles.spreadCard}>
-      <h2 style={styles.cardTitle}>{title}</h2>
-
-      <div style={styles.spreadGrid}>
+    <div style={styles.tradeCard}>
+      <h2 style={styles.cardTitle}>AI-Selected Trade Idea</h2>
+      <div style={styles.tradeGrid}>
         <div>
           <strong>Strategy</strong>
           <br />
@@ -142,29 +236,85 @@ function SpreadCard({
           {spread.expiration}
         </div>
         <div>
-          <strong>Strikes</strong>
+          <strong>{spread.strategyType === "Call Debit Spread" ? "Call Side" : "Put Side"}</strong>
+          <br />
+          {spread.longStrike} / {spread.shortStrike}
+        </div>
+        <div>
+          <strong>Net Debit</strong>
+          <br />${spread.netDebit.toFixed(2)}
+        </div>
+        <div>
+          <strong>Breakeven</strong>
+          <br />${spread.breakeven.toFixed(2)}
+        </div>
+        <div>
+          <strong>Max Profit</strong>
+          <br />${spread.maxProfit.toFixed(2)}
+        </div>
+        <div>
+          <strong>Max Loss</strong>
+          <br />${spread.maxLoss.toFixed(2)}
+        </div>
+      </div>
+
+      <div style={styles.quoteRow}>
+        <div>
+          <strong>{longLabel} Bid/Ask</strong>
+          <br />
+          {spread.longBid.toFixed(2)} / {spread.longAsk.toFixed(2)}
+        </div>
+        <div>
+          <strong>{shortLabel} Bid/Ask</strong>
+          <br />
+          {spread.shortBid.toFixed(2)} / {spread.shortAsk.toFixed(2)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CreditCard({ spread }: { spread: LiveCreditSpread }) {
+  const shortLabel =
+    spread.strategyType === "Bull Put Spread" ? "Short Put" : "Short Call";
+  const longLabel =
+    spread.strategyType === "Bull Put Spread" ? "Long Put" : "Long Call";
+  const sideLabel = spread.strategyType === "Bull Put Spread" ? "Put Side" : "Call Side";
+
+  return (
+    <div style={styles.tradeCard}>
+      <h2 style={styles.cardTitle}>AI-Selected Trade Idea</h2>
+      <div style={styles.tradeGrid}>
+        <div>
+          <strong>Strategy</strong>
+          <br />
+          {spread.strategyType}
+        </div>
+        <div>
+          <strong>Expiration</strong>
+          <br />
+          {spread.expiration}
+        </div>
+        <div>
+          <strong>{sideLabel}</strong>
           <br />
           {spread.shortStrike} / {spread.longStrike}
         </div>
         <div>
-          <strong>Net Credit</strong>
-          <br />
-          ${spread.netCredit.toFixed(2)}
+          <strong>Total Credit</strong>
+          <br />${spread.netCredit.toFixed(2)}
         </div>
         <div>
           <strong>Breakeven</strong>
-          <br />
-          ${spread.breakeven.toFixed(2)}
+          <br />${spread.breakeven.toFixed(2)}
         </div>
         <div>
           <strong>Max Profit</strong>
-          <br />
-          ${spread.maxProfit.toFixed(2)}
+          <br />${spread.maxProfit.toFixed(2)}
         </div>
         <div>
           <strong>Max Loss</strong>
-          <br />
-          ${spread.maxLoss.toFixed(2)}
+          <br />${spread.maxLoss.toFixed(2)}
         </div>
       </div>
 
@@ -184,18 +334,67 @@ function SpreadCard({
   );
 }
 
-function IronCondorCard({
-  title,
-  spread,
-}: {
-  title: string;
-  spread: LiveIronCondor;
-}) {
-  return (
-    <div style={styles.spreadCard}>
-      <h2 style={styles.cardTitle}>{title}</h2>
+function DiagonalCard({ spread }: { spread: LiveDiagonalSpread }) {
+  const longLabel = spread.strategyType === "Call Diagonal" ? "Far Long Call" : "Far Long Put";
+  const shortLabel =
+    spread.strategyType === "Call Diagonal" ? "Near Short Call" : "Near Short Put";
 
-      <div style={styles.spreadGrid}>
+  return (
+    <div style={styles.tradeCard}>
+      <h2 style={styles.cardTitle}>AI-Selected Trade Idea</h2>
+      <div style={styles.tradeGrid}>
+        <div>
+          <strong>Strategy</strong>
+          <br />
+          {spread.strategyType}
+        </div>
+        <div>
+          <strong>Near Expiration</strong>
+          <br />
+          {spread.nearExpiration}
+        </div>
+        <div>
+          <strong>Far Expiration</strong>
+          <br />
+          {spread.farExpiration}
+        </div>
+        <div>
+          <strong>{spread.strategyType === "Call Diagonal" ? "Call Side" : "Put Side"}</strong>
+          <br />
+          {spread.longStrike} / {spread.shortStrike}
+        </div>
+        <div>
+          <strong>Net Debit</strong>
+          <br />${spread.netDebit.toFixed(2)}
+        </div>
+        <div>
+          <strong>Note</strong>
+          <br />
+          Path-dependent
+        </div>
+      </div>
+
+      <div style={styles.quoteRow}>
+        <div>
+          <strong>{longLabel} Bid/Ask</strong>
+          <br />
+          {spread.longBid.toFixed(2)} / {spread.longAsk.toFixed(2)}
+        </div>
+        <div>
+          <strong>{shortLabel} Bid/Ask</strong>
+          <br />
+          {spread.shortBid.toFixed(2)} / {spread.shortAsk.toFixed(2)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function IronCondorCard({ spread }: { spread: LiveIronCondor }) {
+  return (
+    <div style={styles.tradeCard}>
+      <h2 style={styles.cardTitle}>AI-Selected Trade Idea</h2>
+      <div style={styles.tradeGrid}>
         <div>
           <strong>Strategy</strong>
           <br />
@@ -218,46 +417,70 @@ function IronCondorCard({
         </div>
         <div>
           <strong>Total Credit</strong>
-          <br />
-          ${spread.totalCredit.toFixed(2)}
+          <br />${spread.totalCredit.toFixed(2)}
         </div>
         <div>
           <strong>Lower B/E</strong>
-          <br />
-          ${spread.lowerBreakeven.toFixed(2)}
+          <br />${spread.lowerBreakeven.toFixed(2)}
         </div>
         <div>
           <strong>Upper B/E</strong>
-          <br />
-          ${spread.upperBreakeven.toFixed(2)}
+          <br />${spread.upperBreakeven.toFixed(2)}
         </div>
         <div>
           <strong>Max Profit</strong>
-          <br />
-          ${spread.maxProfit.toFixed(2)}
+          <br />${spread.maxProfit.toFixed(2)}
         </div>
         <div>
           <strong>Max Loss</strong>
-          <br />
-          ${spread.maxLoss.toFixed(2)}
+          <br />${spread.maxLoss.toFixed(2)}
         </div>
       </div>
+    </div>
+  );
+}
 
-      <div style={styles.quoteRow}>
+function AltTradeCard({
+  option,
+  parsedLine,
+}: {
+  option: LiveLongOption;
+  parsedLine: string | null;
+}) {
+  return (
+    <div style={styles.altTradeCard}>
+      <h3 style={styles.altCardTitle}>Alt Trade Idea (max risk)</h3>
+
+      {parsedLine && <div style={styles.altTradeText}>{parsedLine}</div>}
+
+      <div style={styles.tradeGrid}>
         <div>
-          <strong>Put Credit</strong>
+          <strong>Strategy</strong>
           <br />
-          ${spread.putCredit.toFixed(2)}
+          {option.strategyType}
         </div>
         <div>
-          <strong>Call Credit</strong>
+          <strong>Expiration</strong>
           <br />
-          ${spread.callCredit.toFixed(2)}
+          {option.expiration}
         </div>
         <div>
-          <strong>Wing Width</strong>
+          <strong>Strike</strong>
           <br />
-          {spread.width.toFixed(2)}
+          {option.strike}
+        </div>
+        <div>
+          <strong>Bid/Ask</strong>
+          <br />
+          {option.bid.toFixed(2)} / {option.ask.toFixed(2)}
+        </div>
+        <div>
+          <strong>Estimated Mid</strong>
+          <br />${option.mid.toFixed(2)}
+        </div>
+        <div>
+          <strong>Max Risk</strong>
+          <br />${option.maxRisk.toFixed(2)}
         </div>
       </div>
     </div>
@@ -279,40 +502,55 @@ export default function Home() {
   const [copied, setCopied] = useState(false);
 
   const bias = useMemo(() => getBiasFromResult(result), [result]);
+  const preferredStrategy = useMemo(() => getPreferredStrategy(result), [result]);
+  const altTradeText = useMemo(() => getAltTradeText(result), [result]);
 
   const selectedTradeCard = useMemo<SelectedTradeCard>(() => {
-    if (!meta || !bias) return null;
+    if (!meta) return null;
 
-    if (bias === "Bullish" && meta.liveBullPutSpread) {
-      return {
-        type: "bullPut",
-        title: "AI-Selected Trade Idea",
-        spread: meta.liveBullPutSpread,
-      };
+    if (preferredStrategy === "Call Debit Spread" && meta.liveCallDebit) {
+      return { type: "callDebit", spread: meta.liveCallDebit };
     }
 
-    if (bias === "Bearish" && meta.liveBearCallSpread) {
-      return {
-        type: "bearCall",
-        title: "AI-Selected Trade Idea",
-        spread: meta.liveBearCallSpread,
-      };
+    if (preferredStrategy === "Put Debit Spread" && meta.livePutDebit) {
+      return { type: "putDebit", spread: meta.livePutDebit };
     }
 
-    if (bias === "Neutral" && meta.liveIronCondor) {
-      return {
-        type: "ironCondor",
-        title: "AI-Selected Trade Idea",
-        spread: meta.liveIronCondor,
-      };
+    if (preferredStrategy === "Bull Put Spread" && meta.liveBullPut) {
+      return { type: "bullPut", spread: meta.liveBullPut };
     }
 
-    return null;
+    if (preferredStrategy === "Bear Call Spread" && meta.liveBearCall) {
+      return { type: "bearCall", spread: meta.liveBearCall };
+    }
+
+    if (preferredStrategy === "Call Diagonal" && meta.liveCallDiagonal) {
+      return { type: "callDiagonal", spread: meta.liveCallDiagonal };
+    }
+
+    if (preferredStrategy === "Put Diagonal" && meta.livePutDiagonal) {
+      return { type: "putDiagonal", spread: meta.livePutDiagonal };
+    }
+
+    if (preferredStrategy === "Iron Condor" && meta.liveIronCondor) {
+      return { type: "ironCondor", spread: meta.liveIronCondor };
+    }
+
+    if (preferredStrategy === "No Trade") {
+      return null;
+    }
+
+    return pickFallbackTrade(meta, bias);
+  }, [meta, preferredStrategy, bias]);
+
+  const altTrade = useMemo(() => {
+    if (!meta) return null;
+    return pickAltTrade(meta, bias);
   }, [meta, bias]);
 
   const analyzeStock = async () => {
     if (!ticker.trim()) {
-      setError("Enter a ticker.");
+      setError("Enter a ticker or company name.");
       return;
     }
 
@@ -382,7 +620,8 @@ export default function Home() {
           <div style={styles.heroText}>
             <h1 style={styles.title}>Swing Trade Analyzer</h1>
             <p style={styles.subtitle}>
-              AI trade breakdowns with live options context and recent headlines.
+              Enter a ticker or company name. Get trade breakdowns with headlines,
+              options context, and smarter strategy selection.
             </p>
           </div>
 
@@ -413,9 +652,9 @@ export default function Home() {
         >
           <input
             type="text"
-            placeholder="Ticker (e.g. AAPL)"
+            placeholder="Ticker or company (e.g. AAPL or Netflix)"
             value={ticker}
-            onChange={(e) => setTicker(e.target.value.toUpperCase())}
+            onChange={(e) => setTicker(e.target.value)}
             style={styles.input}
             autoFocus
             disabled={loading || status === "loading"}
@@ -467,20 +706,30 @@ export default function Home() {
             <div>
               <strong>Symbol:</strong> {meta.symbol}
             </div>
+            {meta.resolvedFromName && meta.originalInput && (
+              <div>
+                <strong>Resolved from:</strong> {meta.originalInput}
+              </div>
+            )}
+            {meta.resolvedFromName && meta.resolvedDisplayName && (
+              <div>
+                <strong>Matched company:</strong> {meta.resolvedDisplayName}
+              </div>
+            )}
             <div>
               <strong>Current Price:</strong> ${meta.currentPrice}
             </div>
             <div>
               <strong>Next Earnings:</strong> {meta.nextEarnings}
             </div>
-            {meta.selectedExpiration && (
-              <div>
-                <strong>Selected Expiration:</strong> {meta.selectedExpiration}
-              </div>
-            )}
             {bias && (
               <div>
                 <strong>AI Bias:</strong> {bias}
+              </div>
+            )}
+            {preferredStrategy && (
+              <div>
+                <strong>Preferred Strategy:</strong> {preferredStrategy}
               </div>
             )}
           </div>
@@ -506,32 +755,35 @@ export default function Home() {
           </div>
         )}
 
+        {selectedTradeCard?.type === "callDebit" && (
+          <DebitCard spread={selectedTradeCard.spread} />
+        )}
+
+        {selectedTradeCard?.type === "putDebit" && (
+          <DebitCard spread={selectedTradeCard.spread} />
+        )}
+
         {selectedTradeCard?.type === "bullPut" && (
-          <div style={styles.spreadCardsWrapper}>
-            <SpreadCard
-              title={selectedTradeCard.title}
-              spread={selectedTradeCard.spread}
-            />
-          </div>
+          <CreditCard spread={selectedTradeCard.spread} />
         )}
 
         {selectedTradeCard?.type === "bearCall" && (
-          <div style={styles.spreadCardsWrapper}>
-            <SpreadCard
-              title={selectedTradeCard.title}
-              spread={selectedTradeCard.spread}
-            />
-          </div>
+          <CreditCard spread={selectedTradeCard.spread} />
+        )}
+
+        {selectedTradeCard?.type === "callDiagonal" && (
+          <DiagonalCard spread={selectedTradeCard.spread} />
+        )}
+
+        {selectedTradeCard?.type === "putDiagonal" && (
+          <DiagonalCard spread={selectedTradeCard.spread} />
         )}
 
         {selectedTradeCard?.type === "ironCondor" && (
-          <div style={styles.spreadCardsWrapper}>
-            <IronCondorCard
-              title={selectedTradeCard.title}
-              spread={selectedTradeCard.spread}
-            />
-          </div>
+          <IronCondorCard spread={selectedTradeCard.spread} />
         )}
+
+        {altTrade && <AltTradeCard option={altTrade} parsedLine={altTradeText} />}
 
         {result && (
           <div style={styles.resultCard}>
@@ -554,6 +806,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     minHeight: "100vh",
     padding: "40px 16px",
     color: "#e5e7eb",
+    background: "#0f172a",
   },
   container: {
     maxWidth: "1040px",
@@ -745,17 +998,43 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: "0.9rem",
     color: "#94a3b8",
   },
-  spreadCardsWrapper: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-    gap: "16px",
-    marginBottom: "16px",
-  },
-  spreadCard: {
+  tradeCard: {
     background: "#1e293b",
     border: "1px solid #334155",
     borderRadius: "14px",
     padding: "16px",
+    marginBottom: "16px",
+  },
+  altTradeCard: {
+    background: "#18263f",
+    border: "1px solid #334155",
+    borderRadius: "14px",
+    padding: "16px",
+    marginBottom: "16px",
+  },
+  altCardTitle: {
+    margin: 0,
+    marginBottom: "10px",
+    fontSize: "1.05rem",
+    color: "#ffffff",
+  },
+  altTradeText: {
+    marginBottom: "12px",
+    color: "#cbd5e1",
+    lineHeight: 1.6,
+  },
+  tradeGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+    gap: "14px",
+    marginBottom: "16px",
+  },
+  quoteRow: {
+    display: "flex",
+    gap: "24px",
+    flexWrap: "wrap",
+    paddingTop: "12px",
+    borderTop: "1px solid #334155",
   },
   resultCard: {
     background: "#1e293b",
@@ -780,19 +1059,6 @@ const styles: { [key: string]: React.CSSProperties } = {
     margin: 0,
     color: "#cbd5e1",
     lineHeight: 1.6,
-  },
-  spreadGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-    gap: "14px",
-    marginBottom: "16px",
-  },
-  quoteRow: {
-    display: "flex",
-    gap: "24px",
-    flexWrap: "wrap",
-    paddingTop: "12px",
-    borderTop: "1px solid #334155",
   },
   result: {
     whiteSpace: "pre-wrap",
