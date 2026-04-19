@@ -51,7 +51,7 @@ type LiveLongOption = {
   strategyType: "Long Call" | "Long Put"; expiration: string;
   strike: number; bid: number; ask: number; mid: number; maxRisk: number;
 };
-type AppUserRow = { user_id: string; daily_count: number; last_reset_date: string; is_premium: boolean };
+type AppUserRow = { user_id: string; daily_count: number; last_reset_date: string; is_premium: boolean; disclaimer_accepted: boolean };
 
 function formatDate(date: Date): string { return date.toISOString().slice(0, 10); }
 
