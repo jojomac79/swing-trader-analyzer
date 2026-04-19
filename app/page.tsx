@@ -531,7 +531,7 @@ export default function Home() {
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
   const [disclaimerLoading, setDisclaimerLoading] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const [upgradePlan, setUpgradePlan] = useState<"monthly" | "yearly">("yearly");
+  const [upgradePlan, setUpgradePlan] = useState<"monthly" | "yearly">("monthly");
   const [upgradeLoading, setUpgradeLoading] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
   const [ticker, setTicker] = useState("");
@@ -885,7 +885,7 @@ export default function Home() {
                   onClick={() => setUpgradePlan("yearly")}
                   style={{ ...styles.planToggleBtn, ...(upgradePlan === "yearly" ? styles.planToggleBtnActive : {}) }}
                 >
-                  Yearly <span style={styles.bestValueBadge}>10% OFF</span>
+                  Yearly <span style={styles.bestValueBadge}>Best Value — Save $12</span>
                 </button>
               </div>
 
