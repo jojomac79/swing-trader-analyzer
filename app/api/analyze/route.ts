@@ -343,7 +343,7 @@ export async function POST(req: Request) {
     const todayKey = new Date().toISOString().slice(0, 10);
 
     const { data: existingUser, error: fetchError } = await supabaseAdmin
-      .from("app_users").select("user_id, daily_count, last_reset_date, is_premium")
+      .from("app_users").select("user_id, daily_count, last_reset_date, is_premium, disclaimer_accepted")
       .eq("user_id", userId).maybeSingle<AppUserRow>();
     if (fetchError) return NextResponse.json({ error: "Failed to check usage." }, { status: 500 });
 
@@ -351,7 +351,7 @@ export async function POST(req: Request) {
     if (!existingUser) {
       const { data: ins, error: insErr } = await supabaseAdmin.from("app_users")
         .insert([{ user_id: userId, daily_count: 0, last_reset_date: todayKey, is_premium: false }])
-        .select("user_id, daily_count, last_reset_date, is_premium").single<AppUserRow>();
+        .select("user_id, daily_count, last_reset_date, is_premium, disclaimer_accepted").single<AppUserRow>();
       if (insErr || !ins) return NextResponse.json({ error: "Failed to create usage record." }, { status: 500 });
       userData = ins;
     } else {
