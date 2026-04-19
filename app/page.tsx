@@ -633,11 +633,11 @@ export default function Home() {
 
       if (!res.ok) {
         if (res.status === 403) {
-          // Use the server's limitType so we show the right gate even if session
-          // state is momentarily stale (e.g. right after OAuth redirect)
           if (data.limitType === "anon_limit") setShowGoogleGate(true);
+          else if (data.limitType === "disclaimer_required") setShowDisclaimer(true);
           else setShowPaywall(true);
         }
+        if (res.status === 401) setShowGoogleGate(true);
         throw new Error(data.error || "Failed to analyze stock.");
       }
 
