@@ -763,13 +763,14 @@ export default function Home() {
                   setDisclaimerLoading(true);
                   try {
                     await fetch("/api/accept-disclaimer", { method: "POST" });
-                    setDisclaimerAccepted(true);
                   } catch {
-                    // fail silently — they can still proceed
+                    // fail silently — still mark as accepted locally
                   } finally {
                     setDisclaimerLoading(false);
                   }
+                  setDisclaimerAccepted(true);
                 }
+                setError("");
                 setShowDisclaimer(false);
               }}
               style={styles.disclaimerButton}
