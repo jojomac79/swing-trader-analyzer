@@ -53,6 +53,17 @@ type LiveLongOption = {
 };
 type AppUserRow = { user_id: string; daily_count: number; last_reset_date: string; is_premium: boolean; disclaimer_accepted: boolean };
 
+type FinnhubCandles = { c?: number[]; h?: number[]; l?: number[]; o?: number[]; v?: number[]; t?: number[]; s?: string };
+type FinnhubIndicator = { technicalAnalysis?: { signal?: string }; trend?: { adx?: number }; indicators?: Record<string, number[][]> };
+type TechData = {
+  rsi14: number | null; macdLine: number | null; macdSignal: number | null; macdHist: number | null;
+  ema20: number | null; ema50: number | null; ema200: number | null;
+  week52High: number | null; week52Low: number | null;
+  weeklyResistance: number | null; weeklySupport: number | null;
+  avgVolume20: number | null; currentVolume: number | null; volumeRatio: number | null;
+  atr14: number | null; priceVsEma20: string | null; priceVsEma50: string | null; priceVsEma200: string | null;
+};
+
 function formatDate(date: Date): string { return date.toISOString().slice(0, 10); }
 
 function toNumber(value: unknown): number | null {
@@ -319,6 +330,132 @@ function buildStrategySection(args: { callDebit: LiveDebitSpread | null; putDebi
   return sections.join("\n\n") + "\n\nIMPORTANT: Use only the live strategies shown above. Do not invent premiums for strategies not listed.\n";
 }
 
+function calcEMA(prices: number[], period: number): number | null {
+  if (prices.length < period) return null;
+  const k = 2 / (period + 1);
+  let ema = prices.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  for (let i = period; i < prices.length; i++) ema = prices[i] * k + ema * (1 - k);
+  return Math.round(ema * 100) / 100;
+}
+
+function calcRSI(closes: number[], period = 14): number | null {
+  if (closes.length < period + 1) return null;
+  let gains = 0, losses = 0;
+  for (let i = closes.length - period; i < closes.length; i++) {
+    const diff = closes[i] - closes[i - 1];
+    if (diff > 0) gains += diff; else losses -= diff;
+  }
+  const avgGain = gains / period, avgLoss = losses / period;
+  if (avgLoss === 0) return 100;
+  const rs = avgGain / avgLoss;
+  return Math.round((100 - 100 / (1 + rs)) * 10) / 10;
+}
+
+function calcMACD(closes: number[]): { macd: number | null; signal: number | null; hist: number | null } {
+  const ema12 = calcEMA(closes, 12);
+  const ema26 = calcEMA(closes, 26);
+  if (ema12 === null || ema26 === null) return { macd: null, signal: null, hist: null };
+  const macdLine = Math.round((ema12 - ema26) * 1000) / 1000;
+  // Signal is 9-period EMA of MACD — approximate using last 9 MACD values
+  const macdValues: number[] = [];
+  for (let i = Math.max(0, closes.length - 35); i <= closes.length - 1; i++) {
+    const e12 = calcEMA(closes.slice(0, i + 1), 12);
+    const e26 = calcEMA(closes.slice(0, i + 1), 26);
+    if (e12 !== null && e26 !== null) macdValues.push(e12 - e26);
+  }
+  const signalLine = macdValues.length >= 9 ? calcEMA(macdValues, 9) : null;
+  const hist = signalLine !== null ? Math.round((macdLine - signalLine) * 1000) / 1000 : null;
+  return { macd: macdLine, signal: signalLine, hist };
+}
+
+function calcATR(highs: number[], lows: number[], closes: number[], period = 14): number | null {
+  if (highs.length < period + 1) return null;
+  const trs: number[] = [];
+  for (let i = 1; i < highs.length; i++) {
+    trs.push(Math.max(highs[i] - lows[i], Math.abs(highs[i] - closes[i - 1]), Math.abs(lows[i] - closes[i - 1])));
+  }
+  const recent = trs.slice(-period);
+  return Math.round((recent.reduce((a, b) => a + b, 0) / period) * 100) / 100;
+}
+
+function buildTechData(candles: FinnhubCandles, price: number): TechData {
+  const closes = candles.c ?? [];
+  const highs = candles.h ?? [];
+  const lows = candles.l ?? [];
+  const volumes = candles.v ?? [];
+
+  const rsi14 = calcRSI(closes);
+  const { macd: macdLine, signal: macdSignal, hist: macdHist } = calcMACD(closes);
+  const ema20 = calcEMA(closes, 20);
+  const ema50 = calcEMA(closes, 50);
+  const ema200 = calcEMA(closes, 200);
+  const atr14 = calcATR(highs, lows, closes);
+
+  const week52High = highs.length ? Math.round(Math.max(...highs) * 100) / 100 : null;
+  const week52Low = lows.length ? Math.round(Math.min(...lows) * 100) / 100 : null;
+
+  // Weekly S/R: last 4 weeks high/low
+  const weeklyCandles = closes.slice(-20);
+  const weeklyHighs = highs.slice(-20);
+  const weeklyLows = lows.slice(-20);
+  const weeklyResistance = weeklyHighs.length ? Math.round(Math.max(...weeklyHighs) * 100) / 100 : null;
+  const weeklySupport = weeklyLows.length ? Math.round(Math.min(...weeklyLows) * 100) / 100 : null;
+
+  // Volume ratio: current vs 20-day avg
+  const avgVolume20 = volumes.length >= 20
+    ? Math.round(volumes.slice(-20).reduce((a, b) => a + b, 0) / 20)
+    : null;
+  const currentVolume = volumes.length ? volumes[volumes.length - 1] : null;
+  const volumeRatio = avgVolume20 && currentVolume ? Math.round((currentVolume / avgVolume20) * 100) / 100 : null;
+
+  return {
+    rsi14, macdLine, macdSignal, macdHist, ema20, ema50, ema200, atr14,
+    week52High, week52Low, weeklyResistance, weeklySupport,
+    avgVolume20, currentVolume, volumeRatio,
+    priceVsEma20: ema20 ? (price > ema20 ? "above" : "below") : null,
+    priceVsEma50: ema50 ? (price > ema50 ? "above" : "below") : null,
+    priceVsEma200: ema200 ? (price > ema200 ? "above" : "below") : null,
+  };
+}
+
+function buildTechnicalSection(tech: TechData, price: number): string {
+  const lines: string[] = ["TECHNICAL ANALYSIS:"];
+
+  // Momentum
+  if (tech.rsi14 !== null) {
+    const rsiSignal = tech.rsi14 >= 70 ? "Overbought" : tech.rsi14 <= 30 ? "Oversold" : tech.rsi14 >= 55 ? "Bullish" : tech.rsi14 <= 45 ? "Bearish" : "Neutral";
+    lines.push(`- RSI(14): ${tech.rsi14} — ${rsiSignal}`);
+  }
+  if (tech.macdLine !== null && tech.macdSignal !== null) {
+    const macdSignal = tech.macdLine > tech.macdSignal ? "Bullish crossover" : "Bearish crossover";
+    lines.push(`- MACD: ${tech.macdLine} | Signal: ${tech.macdSignal} | Hist: ${tech.macdHist} — ${macdSignal}`);
+  }
+  if (tech.atr14 !== null) lines.push(`- ATR(14): $${tech.atr14} (daily range)`);
+
+  // Moving averages
+  if (tech.ema20 !== null) lines.push(`- EMA20: $${tech.ema20} — price is ${tech.priceVsEma20}`);
+  if (tech.ema50 !== null) lines.push(`- EMA50: $${tech.ema50} — price is ${tech.priceVsEma50}`);
+  if (tech.ema200 !== null) lines.push(`- EMA200: $${tech.ema200} — price is ${tech.priceVsEma200}`);
+
+  // Trend summary
+  const bullishMAs = [tech.priceVsEma20, tech.priceVsEma50, tech.priceVsEma200].filter(x => x === "above").length;
+  lines.push(`- MA Trend: Price above ${bullishMAs}/3 key EMAs`);
+
+  // Support/Resistance
+  if (tech.week52High !== null) lines.push(`- 52-Week High: $${tech.week52High}`);
+  if (tech.week52Low !== null) lines.push(`- 52-Week Low: $${tech.week52Low}`);
+  if (tech.weeklyResistance !== null) lines.push(`- 4-Week Resistance: $${tech.weeklyResistance}`);
+  if (tech.weeklySupport !== null) lines.push(`- 4-Week Support: $${tech.weeklySupport}`);
+
+  // Volume
+  if (tech.volumeRatio !== null) {
+    const volSignal = tech.volumeRatio >= 1.5 ? "High volume — strong conviction" : tech.volumeRatio < 0.7 ? "Low volume — weak conviction" : "Normal volume";
+    lines.push(`- Volume Ratio vs 20d avg: ${tech.volumeRatio}x — ${volSignal}`);
+  }
+
+  return lines.join("\n");
+}
+
 // ─── Free tier limits ─────────────────────────────────────────────────────────
 const FREE_DAILY_LIMIT = 3; // signed-in free users; anon users are blocked entirely
 
@@ -402,11 +539,13 @@ export async function POST(req: Request) {
     const today = new Date();
     const sixtyDaysOut = new Date(); sixtyDaysOut.setDate(today.getDate() + 60);
     const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(today.getDate() - 7);
+    const sixMonthsAgo = new Date(); sixMonthsAgo.setDate(today.getDate() - 180);
 
-    const [quoteRes, earningsRes, newsRes] = await Promise.all([
+    const [quoteRes, earningsRes, newsRes, candleRes] = await Promise.all([
       fetch(`https://finnhub.io/api/v1/quote?symbol=${sym}&token=${finnhubKey}`, { cache: "no-store" }),
       fetch(`https://finnhub.io/api/v1/calendar/earnings?symbol=${sym}&from=${formatDate(today)}&to=${formatDate(sixtyDaysOut)}&token=${finnhubKey}`, { cache: "no-store" }),
       fetch(`https://finnhub.io/api/v1/company-news?symbol=${sym}&from=${formatDate(sevenDaysAgo)}&to=${formatDate(today)}&token=${finnhubKey}`, { cache: "no-store" }),
+      fetch(`https://finnhub.io/api/v1/stock/candle?symbol=${sym}&resolution=D&from=${Math.floor(sixMonthsAgo.getTime()/1000)}&to=${Math.floor(today.getTime()/1000)}&token=${finnhubKey}`, { cache: "no-store" }),
     ]);
 
     if (!quoteRes.ok) return NextResponse.json({ error: `Failed to fetch quote for ${symbol}.` }, { status: 500 });
@@ -415,10 +554,17 @@ export async function POST(req: Request) {
     const quoteData = (await quoteRes.json()) as FinnhubQuote;
     const earningsData = (await earningsRes.json()) as FinnhubEarningsResponse;
     const newsData = newsRes.ok ? (await newsRes.json()) as FinnhubNewsItem[] : [];
+    const candleData = candleRes.ok ? (await candleRes.json()) as FinnhubCandles : null;
 
     const currentPriceNumber = typeof quoteData.c === "number" && quoteData.c > 0 ? quoteData.c : null;
     if (!currentPriceNumber) return NextResponse.json({ error: `Could not determine price for ${symbol}.` }, { status: 500 });
     const currentPrice = currentPriceNumber.toFixed(2);
+
+    // Build technical analysis from candles
+    const techData = candleData && candleData.s === "ok" && candleData.c && candleData.c.length > 0
+      ? buildTechData(candleData, currentPriceNumber)
+      : null;
+    const technicalSection = techData ? buildTechnicalSection(techData, currentPriceNumber) : "";
 
     const nextEarnings = earningsData.earningsCalendar?.length
       ? earningsData.earningsCalendar[0].date || "Upcoming"
@@ -470,7 +616,7 @@ export async function POST(req: Request) {
       ? `RECENT HEADLINES:\n${recentHeadlines.map((h, i) => `${i + 1}. ${h.headline} (${h.source})`).join("\n")}`
       : "RECENT HEADLINES:\n- No relevant recent headlines found.";
 
-    const prompt = `You are a sharp, no-BS stock trader.
+    const prompt = `You are a sharp, no-BS stock trader with deep technical analysis expertise.
 
 Analyze the stock: ${symbol}
 Current Price: $${currentPrice}
@@ -478,6 +624,7 @@ Next Earnings Date: ${nextEarnings}
 
 ${resolutionSection}
 
+${technicalSection ? technicalSection + "\n" : ""}
 ${headlinesSection}
 
 ${buildStrategySection({ callDebit: liveCallDebit, putDebit: livePutDebit, bullPut: liveBullPut, bearCall: liveBearCall, callDiagonal: liveCallDiagonal, putDiagonal: livePutDiagonal, ironCondor: liveIronCondor, longCall: liveLongCall, longPut: liveLongPut })}
@@ -485,7 +632,10 @@ ${buildStrategySection({ callDebit: liveCallDebit, putDebit: livePutDebit, bullP
 Pick the best-fit strategy: Call Debit Spread / Put Debit Spread / Bull Put Spread / Bear Call Spread / Call Diagonal / Put Diagonal / Iron Condor / No Trade
 
 Rules:
+- Weight technical indicators heavily — RSI, MACD, EMA alignment, and volume are primary signals.
 - Use headlines as supporting context only.
+- Support/resistance levels should inform strike selection commentary.
+- If RSI is overbought (>70) lean bearish, oversold (<30) lean bullish — but confirm with MACD and price vs EMAs.
 - Do not invent live pricing for strategies not shown above.
 - If diagonal, note payoff is path-dependent.
 - Bullish or Bearish when evidence leans that way. Neutral only when mixed.
@@ -549,7 +699,7 @@ Tone: Direct. Concise. Trader-focused. No fluff. No financial-advisor wording.`;
         currentPrice, nextEarnings, nearExpiration, farExpiration,
         liveCallDebit, livePutDebit, liveBullPut, liveBearCall,
         liveCallDiagonal, livePutDiagonal, liveIronCondor, liveLongCall, liveLongPut,
-        recentHeadlines,
+        recentHeadlines, techData,
       },
     });
   } catch (error) {

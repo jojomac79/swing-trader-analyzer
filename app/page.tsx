@@ -82,10 +82,14 @@ type MetaData = {
   liveCallDiagonal?: LiveDiagonalSpread | null; livePutDiagonal?: LiveDiagonalSpread | null;
   liveIronCondor?: LiveIronCondor | null; liveLongCall?: LiveLongOption | null; liveLongPut?: LiveLongOption | null;
   recentHeadlines?: HeadlineItem[];
-  technicalData?: TechnicalData;
-  volatilityData?: VolatilityData;
-  sectorData?: SectorData;
-  setupScore?: SetupScore;
+  techData?: {
+    rsi14: number | null; macdLine: number | null; macdSignal: number | null; macdHist: number | null;
+    ema20: number | null; ema50: number | null; ema200: number | null;
+    week52High: number | null; week52Low: number | null;
+    weeklyResistance: number | null; weeklySupport: number | null;
+    avgVolume20: number | null; currentVolume: number | null; volumeRatio: number | null;
+    atr14: number | null; priceVsEma20: string | null; priceVsEma50: string | null; priceVsEma200: string | null;
+  } | null;
 };
 
 type SelectedTradeCard =
@@ -290,6 +294,80 @@ function IronCondorCard({ spread }: { spread: LiveIronCondor }) {
         <div><strong>Max Loss</strong><br />${spread.maxLoss.toFixed(2)}</div>
       </div>
       <StatBar pop={spread.pop} pop50={spread.pop50} riskReward={spread.riskReward} />
+    </div>
+  );
+}
+
+function TechCard({ tech }: { tech: NonNullable<MetaData["techData"]> }) {
+  const rsiColor = tech.rsi14 !== null
+    ? tech.rsi14 >= 70 ? "#ef4444" : tech.rsi14 <= 30 ? "#22c55e" : tech.rsi14 >= 55 ? "#22c55e" : tech.rsi14 <= 45 ? "#ef4444" : "#94a3b8"
+    : "#94a3b8";
+  const macdBullish = tech.macdLine !== null && tech.macdSignal !== null && tech.macdLine > tech.macdSignal;
+  const volColor = tech.volumeRatio !== null ? tech.volumeRatio >= 1.5 ? "#22c55e" : tech.volumeRatio < 0.7 ? "#f59e0b" : "#94a3b8" : "#94a3b8";
+
+  return (
+    <div style={styles.techCard}>
+      <h2 style={styles.cardTitle}>📊 Technical Analysis</h2>
+      <div style={styles.techGrid}>
+        <div style={styles.techItem}>
+          <span style={styles.techLabel}>RSI (14)</span>
+          <span style={{ ...styles.techValue, color: rsiColor }}>{tech.rsi14 ?? "—"}</span>
+          <span style={styles.techNote}>{tech.rsi14 !== null ? (tech.rsi14 >= 70 ? "Overbought" : tech.rsi14 <= 30 ? "Oversold" : tech.rsi14 >= 55 ? "Bullish" : tech.rsi14 <= 45 ? "Bearish" : "Neutral") : "—"}</span>
+        </div>
+        <div style={styles.techItem}>
+          <span style={styles.techLabel}>MACD</span>
+          <span style={{ ...styles.techValue, color: macdBullish ? "#22c55e" : "#ef4444" }}>{tech.macdLine?.toFixed(3) ?? "—"}</span>
+          <span style={styles.techNote}>Signal: {tech.macdSignal?.toFixed(3) ?? "—"}</span>
+        </div>
+        <div style={styles.techItem}>
+          <span style={styles.techLabel}>MACD Hist</span>
+          <span style={{ ...styles.techValue, color: (tech.macdHist ?? 0) >= 0 ? "#22c55e" : "#ef4444" }}>{tech.macdHist?.toFixed(3) ?? "—"}</span>
+          <span style={styles.techNote}>{(tech.macdHist ?? 0) >= 0 ? "Bullish" : "Bearish"}</span>
+        </div>
+        <div style={styles.techItem}>
+          <span style={styles.techLabel}>ATR (14)</span>
+          <span style={styles.techValue}>{tech.atr14 !== null ? `$${tech.atr14}` : "—"}</span>
+          <span style={styles.techNote}>Daily range</span>
+        </div>
+        <div style={styles.techItem}>
+          <span style={styles.techLabel}>EMA 20</span>
+          <span style={styles.techValue}>{tech.ema20 !== null ? `$${tech.ema20}` : "—"}</span>
+          <span style={{ ...styles.techNote, color: tech.priceVsEma20 === "above" ? "#22c55e" : "#ef4444" }}>{tech.priceVsEma20 ? `Price ${tech.priceVsEma20}` : "—"}</span>
+        </div>
+        <div style={styles.techItem}>
+          <span style={styles.techLabel}>EMA 50</span>
+          <span style={styles.techValue}>{tech.ema50 !== null ? `$${tech.ema50}` : "—"}</span>
+          <span style={{ ...styles.techNote, color: tech.priceVsEma50 === "above" ? "#22c55e" : "#ef4444" }}>{tech.priceVsEma50 ? `Price ${tech.priceVsEma50}` : "—"}</span>
+        </div>
+        <div style={styles.techItem}>
+          <span style={styles.techLabel}>EMA 200</span>
+          <span style={styles.techValue}>{tech.ema200 !== null ? `$${tech.ema200}` : "—"}</span>
+          <span style={{ ...styles.techNote, color: tech.priceVsEma200 === "above" ? "#22c55e" : "#ef4444" }}>{tech.priceVsEma200 ? `Price ${tech.priceVsEma200}` : "—"}</span>
+        </div>
+        <div style={styles.techItem}>
+          <span style={styles.techLabel}>4-Wk Resist</span>
+          <span style={{ ...styles.techValue, color: "#ef4444" }}>{tech.weeklyResistance !== null ? `$${tech.weeklyResistance}` : "—"}</span>
+          <span style={styles.techNote}>Recent high</span>
+        </div>
+        <div style={styles.techItem}>
+          <span style={styles.techLabel}>4-Wk Support</span>
+          <span style={{ ...styles.techValue, color: "#22c55e" }}>{tech.weeklySupport !== null ? `$${tech.weeklySupport}` : "—"}</span>
+          <span style={styles.techNote}>Recent low</span>
+        </div>
+        <div style={styles.techItem}>
+          <span style={styles.techLabel}>52W High</span>
+          <span style={{ ...styles.techValue, color: "#f59e0b" }}>{tech.week52High !== null ? `$${tech.week52High}` : "—"}</span>
+        </div>
+        <div style={styles.techItem}>
+          <span style={styles.techLabel}>52W Low</span>
+          <span style={{ ...styles.techValue, color: "#f59e0b" }}>{tech.week52Low !== null ? `$${tech.week52Low}` : "—"}</span>
+        </div>
+        <div style={styles.techItem}>
+          <span style={styles.techLabel}>Vol Ratio</span>
+          <span style={{ ...styles.techValue, color: volColor }}>{tech.volumeRatio !== null ? `${tech.volumeRatio}x` : "—"}</span>
+          <span style={styles.techNote}>vs 20d avg</span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1084,6 +1162,9 @@ export default function Home() {
           </div>
         )}
 
+        {/* Technical Analysis Card */}
+        {meta?.techData && <TechCard tech={meta.techData} />}
+
         {/* Trade cards — Beginner / Advanced / Max Risk */}
         {meta && (bias === "Bullish" || bias === "Bearish") && (
           <BeginnerCard bias={bias} symbol={meta.symbol ?? ""} currentPrice={meta.currentPrice ?? ""} />
@@ -1179,17 +1260,12 @@ const styles: { [key: string]: React.CSSProperties } = {
   indicatorSide: { flex: "1 1 220px", minWidth: "200px", display: "flex", flexDirection: "column" as const, gap: "14px" },
 
   // Technical card
-  techCard: { background: "#1e293b", border: "1px solid #334155", borderRadius: "14px", padding: "16px", height: "100%", boxSizing: "border-box" as const },
-  volCard: { background: "#1e293b", border: "1px solid #334155", borderRadius: "14px", padding: "16px" },
-  sectorCard: { background: "#1e293b", border: "1px solid #334155", borderRadius: "14px", padding: "16px" },
-  techSectionLabel: { fontSize: "0.7rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" as const, letterSpacing: "0.08em", marginTop: "12px", marginBottom: "8px" },
-  techGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: "10px" },
-  techItem: { display: "flex", flexDirection: "column" as const, gap: "2px", background: "#0f172a", borderRadius: "8px", padding: "10px 10px" },
+  techCard: { background: "#1e293b", border: "1px solid #334155", borderRadius: "14px", padding: "16px", marginBottom: "16px" },
+  techGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: "10px", marginTop: "12px" },
+  techItem: { display: "flex", flexDirection: "column" as const, gap: "2px", background: "#0f172a", borderRadius: "8px", padding: "10px" },
   techLabel: { fontSize: "0.68rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.06em" },
   techValue: { fontSize: "1.05rem", fontWeight: 700, color: "#e5e7eb" },
   techNote: { fontSize: "0.72rem", color: "#64748b" },
-
-  // Existing cards
   beginnerCard: { background: "#0f2a1a", border: "1px solid #166534", borderRadius: "14px", padding: "16px", marginBottom: "16px" },
   beginnerHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" },
   beginnerBadge: { background: "#166534", color: "#86efac", fontSize: "0.72rem", fontWeight: 700, padding: "3px 8px", borderRadius: "10px" },
