@@ -47,31 +47,6 @@ type LiveLongOption = {
 
 type HeadlineItem = { headline: string; source: string; url: string; };
 
-type TechnicalData = {
-  rsi14: number | null; macdLine: number | null; macdSignal: number | null; macdHistogram: number | null;
-  ema20: number | null; ema50: number | null; ema200: number | null;
-  priceVsEma20: "above" | "below" | null; priceVsEma50: "above" | "below" | null; priceVsEma200: "above" | "below" | null;
-  weeklyResistance: number | null; weeklySupport: number | null; weeklyPivot: number | null;
-  atr14: number | null; avgVolume20: number | null; currentVolume: number | null; volumeRatio: number | null;
-};
-
-type VolatilityData = {
-  ivCurrent: number | null; ivRank: number | null; ivPercentile: number | null;
-  historicalVolatility20: number | null; ivHvRatio: number | null;
-};
-
-type SectorData = {
-  sector: string | null; sectorEtf: string | null;
-  stockChange5d: number | null; sectorChange5d: number | null;
-  relativeStrength: number | null;
-  sectorTrend: "outperforming" | "underperforming" | "inline" | null;
-};
-
-type SetupScore = {
-  score: number; grade: "A" | "B" | "C" | "D" | "F";
-  signals: string[]; warnings: string[]; summary: string;
-};
-
 type MetaData = {
   symbol?: string; originalInput?: string;
   resolvedFromName?: boolean; resolvedDisplayName?: string | null;
@@ -158,28 +133,6 @@ function getPopColor(pop: number): string {
   if (pop >= 70) return "#22c55e";
   if (pop >= 50) return "#f59e0b";
   return "#ef4444";
-}
-
-function getRsiColor(rsi: number): string {
-  if (rsi >= 70) return "#ef4444";
-  if (rsi >= 55) return "#22c55e";
-  if (rsi <= 30) return "#ef4444";
-  if (rsi <= 45) return "#f59e0b";
-  return "#94a3b8";
-}
-
-function getGradeColor(grade: string): string {
-  if (grade === "A") return "#22c55e";
-  if (grade === "B") return "#86efac";
-  if (grade === "C") return "#f59e0b";
-  if (grade === "D") return "#f97316";
-  return "#ef4444";
-}
-
-function getTrendColor(trend: string | null): string {
-  if (trend === "outperforming") return "#22c55e";
-  if (trend === "underperforming") return "#ef4444";
-  return "#94a3b8";
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -427,217 +380,6 @@ function AltTradeCard({ option, parsedLine }: { option: LiveLongOption; parsedLi
         <div><strong>Bid/Ask</strong><br />{option.bid.toFixed(2)} / {option.ask.toFixed(2)}</div>
         <div><strong>Estimated Mid</strong><br />${option.mid.toFixed(2)}</div>
         <div><strong>Max Risk</strong><br />${option.maxRisk.toFixed(2)}</div>
-      </div>
-    </div>
-  );
-}
-
-function SetupScoreCard({ score }: { score: SetupScore }) {
-  const gradeColor = getGradeColor(score.grade);
-  const scoreBarWidth = `${score.score}%`;
-  const scoreBarColor = score.score >= 70 ? "#22c55e" : score.score >= 50 ? "#f59e0b" : "#ef4444";
-
-  return (
-    <div style={styles.setupCard}>
-      <div style={styles.setupHeader}>
-        <h2 style={styles.cardTitle}>Setup Quality Score</h2>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <span style={{ fontSize: "2rem", fontWeight: 800, color: gradeColor }}>{score.grade}</span>
-          <span style={{ fontSize: "1.4rem", fontWeight: 700, color: "#e5e7eb" }}>{score.score}/100</span>
-        </div>
-      </div>
-      <div style={styles.scoreBarBg}>
-        <div style={{ ...styles.scoreBarFill, width: scoreBarWidth, background: scoreBarColor }} />
-      </div>
-      <p style={styles.scoreSummary}>{score.summary}</p>
-      <div style={styles.signalGrid}>
-        {score.signals.length > 0 && (
-          <div>
-            <div style={styles.signalHeader}>✅ Bullish signals</div>
-            {score.signals.map((s, i) => (
-              <div key={i} style={styles.signalItem}>{s}</div>
-            ))}
-          </div>
-        )}
-        {score.warnings.length > 0 && (
-          <div>
-            <div style={styles.warningHeader}>⚠️ Warnings</div>
-            {score.warnings.map((w, i) => (
-              <div key={i} style={styles.warningItem}>{w}</div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function TechnicalCard({ tech }: { tech: TechnicalData }) {
-  const macdBullish = tech.macdLine !== null && tech.macdSignal !== null && tech.macdLine > tech.macdSignal;
-
-  return (
-    <div style={styles.techCard}>
-      <h2 style={styles.cardTitle}>Technical Indicators</h2>
-
-      <div style={styles.techSectionLabel}>Momentum</div>
-      <div style={styles.techGrid}>
-        <div style={styles.techItem}>
-          <span style={styles.techLabel}>RSI (14)</span>
-          <span style={{ ...styles.techValue, color: tech.rsi14 !== null ? getRsiColor(tech.rsi14) : "#94a3b8" }}>
-            {tech.rsi14 ?? "—"}
-          </span>
-          {tech.rsi14 !== null && (
-            <span style={styles.techNote}>
-              {tech.rsi14 >= 70 ? "Overbought" : tech.rsi14 <= 30 ? "Oversold" : tech.rsi14 >= 50 ? "Bullish" : "Bearish"}
-            </span>
-          )}
-        </div>
-        <div style={styles.techItem}>
-          <span style={styles.techLabel}>MACD</span>
-          <span style={{ ...styles.techValue, color: macdBullish ? "#22c55e" : "#ef4444" }}>
-            {tech.macdLine?.toFixed(3) ?? "—"}
-          </span>
-          <span style={styles.techNote}>Signal: {tech.macdSignal?.toFixed(3) ?? "—"}</span>
-        </div>
-        <div style={styles.techItem}>
-          <span style={styles.techLabel}>MACD Hist</span>
-          <span style={{ ...styles.techValue, color: (tech.macdHistogram ?? 0) >= 0 ? "#22c55e" : "#ef4444" }}>
-            {tech.macdHistogram?.toFixed(3) ?? "—"}
-          </span>
-          <span style={styles.techNote}>{(tech.macdHistogram ?? 0) >= 0 ? "Expanding" : "Contracting"}</span>
-        </div>
-        <div style={styles.techItem}>
-          <span style={styles.techLabel}>ATR (14)</span>
-          <span style={styles.techValue}>{tech.atr14 ?? "—"}</span>
-          <span style={styles.techNote}>Daily range</span>
-        </div>
-      </div>
-
-      <div style={styles.techSectionLabel}>Moving Averages</div>
-      <div style={styles.techGrid}>
-        {[
-          { label: "EMA 20", val: tech.ema20, pos: tech.priceVsEma20 },
-          { label: "EMA 50", val: tech.ema50, pos: tech.priceVsEma50 },
-          { label: "EMA 200", val: tech.ema200, pos: tech.priceVsEma200 },
-        ].map(({ label, val, pos }) => (
-          <div key={label} style={styles.techItem}>
-            <span style={styles.techLabel}>{label}</span>
-            <span style={styles.techValue}>{val !== null ? `$${val.toFixed(2)}` : "—"}</span>
-            {pos && (
-              <span style={{ ...styles.techNote, color: pos === "above" ? "#22c55e" : "#ef4444" }}>
-                Price {pos}
-              </span>
-            )}
-          </div>
-        ))}
-      </div>
-
-      <div style={styles.techSectionLabel}>Weekly Levels (S/R)</div>
-      <div style={styles.techGrid}>
-        <div style={styles.techItem}>
-          <span style={styles.techLabel}>Resistance</span>
-          <span style={{ ...styles.techValue, color: "#ef4444" }}>
-            {tech.weeklyResistance !== null ? `$${tech.weeklyResistance}` : "—"}
-          </span>
-          <span style={styles.techNote}>52-wk high</span>
-        </div>
-        <div style={styles.techItem}>
-          <span style={styles.techLabel}>Pivot</span>
-          <span style={{ ...styles.techValue, color: "#f59e0b" }}>
-            {tech.weeklyPivot !== null ? `$${tech.weeklyPivot}` : "—"}
-          </span>
-          <span style={styles.techNote}>Last week</span>
-        </div>
-        <div style={styles.techItem}>
-          <span style={styles.techLabel}>Support</span>
-          <span style={{ ...styles.techValue, color: "#22c55e" }}>
-            {tech.weeklySupport !== null ? `$${tech.weeklySupport}` : "—"}
-          </span>
-          <span style={styles.techNote}>52-wk low</span>
-        </div>
-        <div style={styles.techItem}>
-          <span style={styles.techLabel}>Volume Ratio</span>
-          <span style={{ ...styles.techValue, color: (tech.volumeRatio ?? 1) >= 1.5 ? "#22c55e" : (tech.volumeRatio ?? 1) < 0.7 ? "#f59e0b" : "#e5e7eb" }}>
-            {tech.volumeRatio !== null ? `${tech.volumeRatio.toFixed(2)}x` : "—"}
-          </span>
-          <span style={styles.techNote}>vs 20d avg</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function VolatilityCard({ vol }: { vol: VolatilityData }) {
-  const ivRankColor = vol.ivRank !== null
-    ? vol.ivRank > 50 ? "#22c55e" : vol.ivRank > 30 ? "#f59e0b" : "#94a3b8"
-    : "#94a3b8";
-
-  return (
-    <div style={styles.volCard}>
-      <h2 style={styles.cardTitle}>Volatility</h2>
-      <div style={styles.techGrid}>
-        <div style={styles.techItem}>
-          <span style={styles.techLabel}>IV (ATM)</span>
-          <span style={styles.techValue}>{vol.ivCurrent !== null ? `${vol.ivCurrent}%` : "—"}</span>
-          <span style={styles.techNote}>Current</span>
-        </div>
-        <div style={styles.techItem}>
-          <span style={styles.techLabel}>IV Rank</span>
-          <span style={{ ...styles.techValue, color: ivRankColor }}>
-            {vol.ivRank !== null ? vol.ivRank : "—"}
-          </span>
-          <span style={styles.techNote}>{vol.ivRank !== null ? (vol.ivRank > 50 ? "Elevated → sell" : "Low → buy") : "—"}</span>
-        </div>
-        <div style={styles.techItem}>
-          <span style={styles.techLabel}>HV (20d)</span>
-          <span style={styles.techValue}>{vol.historicalVolatility20 !== null ? `${vol.historicalVolatility20}%` : "—"}</span>
-          <span style={styles.techNote}>Annualized</span>
-        </div>
-        <div style={styles.techItem}>
-          <span style={styles.techLabel}>IV/HV</span>
-          <span style={{ ...styles.techValue, color: (vol.ivHvRatio ?? 1) > 1.2 ? "#f59e0b" : "#e5e7eb" }}>
-            {vol.ivHvRatio !== null ? vol.ivHvRatio.toFixed(2) : "—"}
-          </span>
-          <span style={styles.techNote}>{(vol.ivHvRatio ?? 1) > 1.2 ? "Options rich" : (vol.ivHvRatio ?? 1) < 0.8 ? "Options cheap" : "Fair"}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function SectorCard({ sector }: { sector: SectorData }) {
-  const trendColor = getTrendColor(sector.sectorTrend);
-  return (
-    <div style={styles.sectorCard}>
-      <h2 style={styles.cardTitle}>Sector Context</h2>
-      <div style={styles.techGrid}>
-        <div style={styles.techItem}>
-          <span style={styles.techLabel}>Sector</span>
-          <span style={{ ...styles.techValue, fontSize: "0.85rem" }}>{sector.sector ?? "—"}</span>
-          <span style={styles.techNote}>{sector.sectorEtf ?? "—"}</span>
-        </div>
-        <div style={styles.techItem}>
-          <span style={styles.techLabel}>Stock 5d</span>
-          <span style={{ ...styles.techValue, color: (sector.stockChange5d ?? 0) >= 0 ? "#22c55e" : "#ef4444" }}>
-            {sector.stockChange5d !== null ? `${sector.stockChange5d > 0 ? "+" : ""}${sector.stockChange5d.toFixed(2)}%` : "—"}
-          </span>
-        </div>
-        <div style={styles.techItem}>
-          <span style={styles.techLabel}>Sector 5d</span>
-          <span style={{ ...styles.techValue, color: (sector.sectorChange5d ?? 0) >= 0 ? "#22c55e" : "#ef4444" }}>
-            {sector.sectorChange5d !== null ? `${sector.sectorChange5d > 0 ? "+" : ""}${sector.sectorChange5d.toFixed(2)}%` : "—"}
-          </span>
-          <span style={styles.techNote}>{sector.sectorEtf}</span>
-        </div>
-        <div style={styles.techItem}>
-          <span style={styles.techLabel}>Rel. Strength</span>
-          <span style={{ ...styles.techValue, color: trendColor }}>
-            {sector.relativeStrength !== null ? `${sector.relativeStrength > 0 ? "+" : ""}${sector.relativeStrength.toFixed(2)}%` : "—"}
-          </span>
-          <span style={{ ...styles.techNote, color: trendColor, textTransform: "capitalize" }}>
-            {sector.sectorTrend ?? "—"}
-          </span>
-        </div>
       </div>
     </div>
   );
@@ -1146,22 +888,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* Setup Score */}
-        {meta?.setupScore && <SetupScoreCard score={meta.setupScore} />}
-
-        {/* Technical + Volatility + Sector row */}
-        {meta?.technicalData && (
-          <div style={styles.indicatorRow}>
-            <div style={styles.indicatorMain}>
-              <TechnicalCard tech={meta.technicalData} />
-            </div>
-            <div style={styles.indicatorSide}>
-              {meta.volatilityData && <VolatilityCard vol={meta.volatilityData} />}
-              {meta.sectorData && <SectorCard sector={meta.sectorData} />}
-            </div>
-          </div>
-        )}
-
         {/* Technical Analysis Card */}
         {meta?.techData && <TechCard tech={meta.techData} />}
 
@@ -1241,23 +967,6 @@ const styles: { [key: string]: React.CSSProperties } = {
   paywallCard: { background: "#1f2937", border: "1px solid #475569", borderRadius: "14px", padding: "18px", marginBottom: "16px", display: "grid", gap: "12px", boxShadow: "0 10px 30px rgba(0,0,0,0.18)" },
   paywallActions: { display: "flex", gap: "12px", flexWrap: "wrap" },
   metaCard: { background: "#1e293b", border: "1px solid #334155", borderRadius: "14px", padding: "16px", marginBottom: "16px", display: "flex", gap: "20px", flexWrap: "wrap" },
-
-  // Setup score
-  setupCard: { background: "#1e293b", border: "1px solid #334155", borderRadius: "14px", padding: "16px", marginBottom: "16px" },
-  setupHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" },
-  scoreBarBg: { height: "8px", background: "#0f172a", borderRadius: "6px", marginBottom: "12px", overflow: "hidden" },
-  scoreBarFill: { height: "100%", borderRadius: "6px", transition: "width 0.5s ease" },
-  scoreSummary: { margin: "0 0 12px", color: "#cbd5e1", fontSize: "0.95rem" },
-  signalGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" },
-  signalHeader: { fontSize: "0.75rem", fontWeight: 700, color: "#22c55e", marginBottom: "6px", textTransform: "uppercase" as const, letterSpacing: "0.05em" },
-  warningHeader: { fontSize: "0.75rem", fontWeight: 700, color: "#f59e0b", marginBottom: "6px", textTransform: "uppercase" as const, letterSpacing: "0.05em" },
-  signalItem: { fontSize: "0.82rem", color: "#86efac", marginBottom: "4px", paddingLeft: "4px", borderLeft: "2px solid #22c55e" },
-  warningItem: { fontSize: "0.82rem", color: "#fde68a", marginBottom: "4px", paddingLeft: "4px", borderLeft: "2px solid #f59e0b" },
-
-  // Indicator layout
-  indicatorRow: { display: "flex", gap: "14px", marginBottom: "16px", flexWrap: "wrap" },
-  indicatorMain: { flex: "2 1 400px", minWidth: "300px" },
-  indicatorSide: { flex: "1 1 220px", minWidth: "200px", display: "flex", flexDirection: "column" as const, gap: "14px" },
 
   // Technical card
   techCard: { background: "#1e293b", border: "1px solid #334155", borderRadius: "14px", padding: "16px", marginBottom: "16px" },
