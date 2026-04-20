@@ -55,6 +55,10 @@ type AppUserRow = { user_id: string; daily_count: number; last_reset_date: strin
 
 type FinnhubCandles = { c?: number[]; h?: number[]; l?: number[]; o?: number[]; v?: number[]; t?: number[]; s?: string };
 type FinnhubIndicator = { technicalAnalysis?: { signal?: string }; trend?: { adx?: number }; indicators?: Record<string, number[][]> };
+type FinnhubUpgradeItem = { symbol?: string; action?: string; fromGrade?: string; toGrade?: string; company?: string; gradeCompany?: string };
+type FinnhubPriceTarget = { targetHigh?: number; targetLow?: number; targetMean?: number; targetMedian?: number; lastUpdated?: string };
+type AnalystItem = { action: string; fromGrade: string; toGrade: string; firm: string };
+type AnalystData = { upgrades: AnalystItem[]; priceTarget: { high: number | null; low: number | null; mean: number | null } };
 type TechData = {
   rsi14: number | null; macdLine: number | null; macdSignal: number | null; macdHist: number | null;
   ema20: number | null; ema50: number | null; ema200: number | null;
@@ -543,11 +547,13 @@ export async function POST(req: Request) {
     const sixtyDaysOut = new Date(); sixtyDaysOut.setDate(today.getDate() + 60);
     const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(today.getDate() - 7);
 
-    const [quoteRes, earningsRes, newsRes, candleRes] = await Promise.all([
+    const [quoteRes, earningsRes, newsRes, candleRes, upgradeRes, priceTargetRes] = await Promise.all([
       fetch(`https://finnhub.io/api/v1/quote?symbol=${sym}&token=${finnhubKey}`, { cache: "no-store" }),
       fetch(`https://finnhub.io/api/v1/calendar/earnings?symbol=${sym}&from=${formatDate(today)}&to=${formatDate(sixtyDaysOut)}&token=${finnhubKey}`, { cache: "no-store" }),
       fetch(`https://finnhub.io/api/v1/company-news?symbol=${sym}&from=${formatDate(sevenDaysAgo)}&to=${formatDate(today)}&token=${finnhubKey}`, { cache: "no-store" }),
       fetch(`https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${sym}&outputsize=compact&apikey=${alphaKey}`, { cache: "no-store" }),
+      fetch(`https://finnhub.io/api/v1/stock/upgrade-downgrade?symbol=${sym}&token=${finnhubKey}`, { cache: "no-store" }),
+      fetch(`https://finnhub.io/api/v1/stock/price-target?symbol=${sym}&token=${finnhubKey}`, { cache: "no-store" }),
     ]);
 
     if (!quoteRes.ok) return NextResponse.json({ error: `Failed to fetch quote for ${symbol}.` }, { status: 500 });
@@ -599,6 +605,29 @@ export async function POST(req: Request) {
     const filtered = validNews.filter((i) => isRelevantHeadline(i, keywords));
     const recentHeadlines: HeadlineItem[] = (filtered.length ? filtered : validNews).slice(0, 5).map((i) => ({ headline: i.headline!, source: i.source!, url: i.url! }));
 
+    // Analyst upgrades/downgrades — last 90 days, max 5
+    const ninetyDaysAgo = new Date(); ninetyDaysAgo.setDate(today.getDate() - 90);
+    const upgradeData = upgradeRes.ok ? (await upgradeRes.json()) as FinnhubUpgradeItem[] : [];
+    const recentUpgrades: AnalystItem[] = Array.isArray(upgradeData)
+      ? upgradeData.slice(0, 8).map((u) => ({
+          action: u.action ?? "",
+          fromGrade: u.fromGrade ?? "",
+          toGrade: u.toGrade ?? "",
+          firm: u.gradeCompany ?? u.company ?? "",
+        })).filter((u) => u.action && u.firm)
+      : [];
+
+    // Price target
+    const priceTargetData = priceTargetRes.ok ? (await priceTargetRes.json()) as FinnhubPriceTarget : null;
+    const analystData: AnalystData = {
+      upgrades: recentUpgrades,
+      priceTarget: {
+        high: priceTargetData?.targetHigh ?? null,
+        low: priceTargetData?.targetLow ?? null,
+        mean: priceTargetData?.targetMean ?? null,
+      },
+    };
+
     const expRes = await fetch(`https://api.tradier.com/v1/markets/options/expirations?symbol=${sym}&includeAllRoots=true`, { headers: { Authorization: `Bearer ${tradierKey}`, Accept: "application/json" }, cache: "no-store" });
     if (!expRes.ok) return NextResponse.json({ error: `Failed to fetch expirations for ${symbol}.` }, { status: 500 });
 
@@ -636,6 +665,23 @@ export async function POST(req: Request) {
       ? `Input Resolved:\n- Original: ${resolved.originalInput}\n- Ticker: ${symbol}\n- Company: ${resolved.resolvedDisplayName ?? "Unknown"}`
       : `Input Resolved:\n- Ticker: ${symbol}`;
 
+    const analystSection = (() => {
+      const lines: string[] = ["ANALYST DATA:"];
+      if (analystData.priceTarget.mean !== null) {
+        lines.push(`- Consensus Price Target: $${analystData.priceTarget.mean.toFixed(2)} (Low: $${analystData.priceTarget.low?.toFixed(2) ?? "—"} / High: $${analystData.priceTarget.high?.toFixed(2) ?? "—"})`);
+      }
+      if (analystData.upgrades.length) {
+        lines.push("- Recent Upgrades/Downgrades:");
+        analystData.upgrades.forEach((u) => {
+          const action = u.action.toLowerCase().includes("up") ? "Upgraded" : u.action.toLowerCase().includes("down") ? "Downgraded" : u.action;
+          lines.push(`  • ${u.firm}: ${action}${u.fromGrade ? ` from ${u.fromGrade}` : ""} to ${u.toGrade}`);
+        });
+      } else {
+        lines.push("- No recent upgrades/downgrades found.");
+      }
+      return lines.join("\n");
+    })();
+
     const headlinesSection = recentHeadlines.length
       ? `RECENT HEADLINES:\n${recentHeadlines.map((h, i) => `${i + 1}. ${h.headline} (${h.source})`).join("\n")}`
       : "RECENT HEADLINES:\n- No relevant recent headlines found.";
@@ -649,6 +695,8 @@ Next Earnings Date: ${nextEarnings}
 ${resolutionSection}
 
 ${technicalSection ? technicalSection + "\n" : ""}
+${analystSection}
+
 ${headlinesSection}
 
 ${buildStrategySection({ callDebit: liveCallDebit, putDebit: livePutDebit, bullPut: liveBullPut, bearCall: liveBearCall, callDiagonal: liveCallDiagonal, putDiagonal: livePutDiagonal, ironCondor: liveIronCondor, longCall: liveLongCall, longPut: liveLongPut })}
@@ -723,7 +771,7 @@ Tone: Direct. Concise. Trader-focused. No fluff. No financial-advisor wording.`;
         currentPrice, nextEarnings, nearExpiration, farExpiration,
         liveCallDebit, livePutDebit, liveBullPut, liveBearCall,
         liveCallDiagonal, livePutDiagonal, liveIronCondor, liveLongCall, liveLongPut,
-        recentHeadlines, techData,
+        recentHeadlines, techData, analystData,
       },
     });
   } catch (error) {

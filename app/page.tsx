@@ -57,6 +57,10 @@ type MetaData = {
   liveCallDiagonal?: LiveDiagonalSpread | null; livePutDiagonal?: LiveDiagonalSpread | null;
   liveIronCondor?: LiveIronCondor | null; liveLongCall?: LiveLongOption | null; liveLongPut?: LiveLongOption | null;
   recentHeadlines?: HeadlineItem[];
+  analystData?: {
+    upgrades: { action: string; fromGrade: string; toGrade: string; firm: string }[];
+    priceTarget: { high: number | null; low: number | null; mean: number | null };
+  } | null;
   techData?: {
     rsi14: number | null; macdLine: number | null; macdSignal: number | null; macdHist: number | null;
     ema20: number | null; ema50: number | null; ema200: number | null;
@@ -266,6 +270,53 @@ function IronCondorCard({ spread, currentPrice }: { spread: LiveIronCondor; curr
         <div><strong>Stop Loss (Underlying)</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${lowerStop} / ${upperStop}</span></div>
       </div>
       <StatBar pop={spread.pop} pop50={spread.pop50} riskReward={spread.riskReward} />
+    </div>
+  );
+}
+
+function AnalystCard({ data }: { data: NonNullable<MetaData["analystData"]> }) {
+  const { upgrades, priceTarget } = data;
+  return (
+    <div style={styles.analystCard}>
+      <h2 style={styles.cardTitle}>🎯 Analyst Activity</h2>
+      {priceTarget.mean !== null && (
+        <div style={styles.priceTargetRow}>
+          <div style={styles.priceTargetItem}>
+            <span style={styles.techLabel}>Consensus Target</span>
+            <span style={{ ...styles.techValue, color: "#f59e0b" }}>${priceTarget.mean.toFixed(2)}</span>
+          </div>
+          <div style={styles.priceTargetItem}>
+            <span style={styles.techLabel}>Target Low</span>
+            <span style={styles.techValue}>{priceTarget.low !== null ? `$${priceTarget.low.toFixed(2)}` : "—"}</span>
+          </div>
+          <div style={styles.priceTargetItem}>
+            <span style={styles.techLabel}>Target High</span>
+            <span style={styles.techValue}>{priceTarget.high !== null ? `$${priceTarget.high.toFixed(2)}` : "—"}</span>
+          </div>
+        </div>
+      )}
+      {upgrades.length > 0 && (
+        <div style={styles.upgradesList}>
+          {upgrades.map((u, i) => {
+            const isUpgrade = u.action.toLowerCase().includes("up");
+            const isDowngrade = u.action.toLowerCase().includes("down");
+            const color = isUpgrade ? "#22c55e" : isDowngrade ? "#ef4444" : "#94a3b8";
+            const label = isUpgrade ? "▲ Upgraded" : isDowngrade ? "▼ Downgraded" : u.action;
+            return (
+              <div key={i} style={styles.upgradeRow}>
+                <span style={{ ...styles.upgradeAction, color }}>{label}</span>
+                <span style={styles.upgradeFirm}>{u.firm}</span>
+                <span style={styles.upgradeGrade}>
+                  {u.fromGrade ? `${u.fromGrade} → ` : ""}{u.toGrade}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {upgrades.length === 0 && (
+        <p style={{ color: "#64748b", fontSize: "0.85rem", margin: "8px 0 0" }}>No recent upgrades or downgrades.</p>
+      )}
     </div>
   );
 }
@@ -932,6 +983,9 @@ export default function Home() {
         {selectedTradeCard?.type === "ironCondor" && <IronCondorCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} />}
         {altTrade && <AltTradeCard option={altTrade} parsedLine={altTradeText} currentPrice={meta?.currentPrice ?? "0"} />}
 
+        {/* Analyst Activity */}
+        {meta?.analystData && <AnalystCard data={meta.analystData} />}
+
         {/* Headlines */}
         {meta?.recentHeadlines && meta.recentHeadlines.length > 0 && (
           <div style={styles.headlinesCard}>
@@ -997,7 +1051,14 @@ const styles: { [key: string]: React.CSSProperties } = {
   metaCard: { background: "#1e293b", border: "1px solid #334155", borderRadius: "14px", padding: "16px", marginBottom: "16px", display: "flex", gap: "20px", flexWrap: "wrap" },
 
   // Technical card
-  techCard: { background: "#1e293b", border: "1px solid #334155", borderRadius: "14px", padding: "16px", marginBottom: "16px" },
+  analystCard: { background: "#1e293b", border: "1px solid #334155", borderRadius: "14px", padding: "16px", marginBottom: "16px" },
+  priceTargetRow: { display: "flex", gap: "12px", marginTop: "12px", marginBottom: "12px", flexWrap: "wrap" as const },
+  priceTargetItem: { display: "flex", flexDirection: "column" as const, gap: "2px", background: "#0f172a", borderRadius: "8px", padding: "10px 14px", flex: "1 1 80px" },
+  upgradesList: { display: "flex", flexDirection: "column" as const, gap: "6px", marginTop: "8px" },
+  upgradeRow: { display: "flex", alignItems: "center", gap: "10px", background: "#0f172a", borderRadius: "8px", padding: "8px 12px", flexWrap: "wrap" as const },
+  upgradeAction: { fontWeight: 700, fontSize: "0.85rem", minWidth: "90px" },
+  upgradeFirm: { color: "#e5e7eb", fontSize: "0.85rem", flex: 1 },
+  upgradeGrade: { color: "#94a3b8", fontSize: "0.8rem" }, { background: "#1e293b", border: "1px solid #334155", borderRadius: "14px", padding: "16px", marginBottom: "16px" },
   techGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: "10px", marginTop: "12px" },
   techItem: { display: "flex", flexDirection: "column" as const, gap: "2px", background: "#0f172a", borderRadius: "8px", padding: "10px" },
   techLabel: { fontSize: "0.68rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.06em" },
