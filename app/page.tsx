@@ -337,7 +337,7 @@ function BeginnerCard({ bias, symbol, currentPrice }: { bias: "Bullish" | "Beari
   );
 }
 
- option, parsedLine }: { option: LiveLongOption; parsedLine: string | null }) {
+function AltTradeCard({ option, parsedLine }: { option: LiveLongOption; parsedLine: string | null }) {
   return (
     <div style={styles.altTradeCard}>
       <h3 style={styles.altCardTitle}>🎯 Max Risk Trade</h3>
