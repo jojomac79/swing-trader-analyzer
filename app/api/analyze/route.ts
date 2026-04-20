@@ -536,16 +536,18 @@ export async function POST(req: Request) {
     const symbol = resolved.symbol;
     const sym = encodeURIComponent(symbol);
 
+    const alphaKey = process.env.ALPHA_VANTAGE_API_KEY;
+    if (!alphaKey) return NextResponse.json({ error: "Missing ALPHA_VANTAGE_API_KEY" }, { status: 500 });
+
     const today = new Date();
     const sixtyDaysOut = new Date(); sixtyDaysOut.setDate(today.getDate() + 60);
     const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(today.getDate() - 7);
-    const sixMonthsAgo = new Date(); sixMonthsAgo.setDate(today.getDate() - 180);
 
     const [quoteRes, earningsRes, newsRes, candleRes] = await Promise.all([
       fetch(`https://finnhub.io/api/v1/quote?symbol=${sym}&token=${finnhubKey}`, { cache: "no-store" }),
       fetch(`https://finnhub.io/api/v1/calendar/earnings?symbol=${sym}&from=${formatDate(today)}&to=${formatDate(sixtyDaysOut)}&token=${finnhubKey}`, { cache: "no-store" }),
       fetch(`https://finnhub.io/api/v1/company-news?symbol=${sym}&from=${formatDate(sevenDaysAgo)}&to=${formatDate(today)}&token=${finnhubKey}`, { cache: "no-store" }),
-      fetch(`https://finnhub.io/api/v1/stock/candle?symbol=${sym}&resolution=D&from=${Math.floor(sixMonthsAgo.getTime()/1000)}&to=${Math.floor(today.getTime()/1000)}&token=${finnhubKey}`, { cache: "no-store" }),
+      fetch(`https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${sym}&outputsize=compact&apikey=${alphaKey}`, { cache: "no-store" }),
     ]);
 
     if (!quoteRes.ok) return NextResponse.json({ error: `Failed to fetch quote for ${symbol}.` }, { status: 500 });
@@ -557,13 +559,33 @@ export async function POST(req: Request) {
     const candleData = candleRes.ok ? (await candleRes.json()) as FinnhubCandles : null;
     console.log("CANDLE STATUS:", candleRes.status, "DATA:", JSON.stringify(candleData)?.slice(0, 200));
 
+    // Parse Alpha Vantage TIME_SERIES_DAILY into FinnhubCandles format
+    let parsedCandles: FinnhubCandles | null = null;
+    if (candleData) {
+      const raw = candleData as unknown as Record<string, unknown>;
+      const timeSeries = raw["Time Series (Daily)"] as Record<string, Record<string, string>> | undefined;
+      if (timeSeries) {
+        const dates = Object.keys(timeSeries).sort(); // ascending
+        const c: number[] = [], h: number[] = [], l: number[] = [], o: number[] = [], v: number[] = [];
+        for (const date of dates) {
+          const day = timeSeries[date];
+          c.push(parseFloat(day["4. close"]));
+          h.push(parseFloat(day["2. high"]));
+          l.push(parseFloat(day["3. low"]));
+          o.push(parseFloat(day["1. open"]));
+          v.push(parseFloat(day["5. volume"]));
+        }
+        parsedCandles = { c, h, l, o, v, s: "ok" };
+      }
+    }
+
     const currentPriceNumber = typeof quoteData.c === "number" && quoteData.c > 0 ? quoteData.c : null;
     if (!currentPriceNumber) return NextResponse.json({ error: `Could not determine price for ${symbol}.` }, { status: 500 });
     const currentPrice = currentPriceNumber.toFixed(2);
 
     // Build technical analysis from candles
-    const techData = candleData && candleData.s === "ok" && candleData.c && candleData.c.length > 0
-      ? buildTechData(candleData, currentPriceNumber)
+    const techData = parsedCandles && parsedCandles.c && parsedCandles.c.length > 0
+      ? buildTechData(parsedCandles, currentPriceNumber)
       : null;
     const technicalSection = techData ? buildTechnicalSection(techData, currentPriceNumber) : "";
 
