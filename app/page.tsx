@@ -530,6 +530,7 @@ export default function Home() {
   const [showDisclaimer, setShowDisclaimer] = useState(false);
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
   const [disclaimerLoading, setDisclaimerLoading] = useState(false);
+  const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradePlan, setUpgradePlan] = useState<"monthly" | "yearly">("monthly");
   const [upgradeLoading, setUpgradeLoading] = useState(false);
@@ -781,6 +782,74 @@ export default function Home() {
         </div>
       )}
 
+      {/* Privacy Policy modal */}
+      {showPrivacyPolicy && (
+        <div style={styles.disclaimerOverlay}>
+          <div style={styles.disclaimerModal}>
+            <h2 style={styles.disclaimerTitle}>🔒 Privacy Policy</h2>
+            <div style={styles.disclaimerScroll}>
+
+              <p style={styles.disclaimerMeta}>Last Updated: April 19, 2026</p>
+
+              <p style={styles.disclaimerText}>
+                This Privacy Policy explains how Swing Trade Analyzer ("we," "us," or "our") collects, uses, and protects your information when you use our website.
+              </p>
+
+              <p style={styles.disclaimerSubtitle}>Information We Collect</p>
+              <p style={styles.disclaimerText}>
+                When you sign in with Google, we receive your email address and basic profile information provided by Google. We use your email address solely to identify your account, track usage limits, and manage your subscription status. We do not collect passwords, payment card details, or sensitive personal information — payment processing is handled entirely by Stripe.
+              </p>
+
+              <p style={styles.disclaimerSubtitle}>How We Use Your Information</p>
+              <p style={styles.disclaimerText}>
+                We use your information to provide and improve the service, enforce daily usage limits, manage Pro subscriptions, and record your acceptance of our disclaimer. We do not sell, rent, or share your personal information with third parties for marketing purposes.
+              </p>
+
+              <p style={styles.disclaimerSubtitle}>Third-Party Services</p>
+              <p style={styles.disclaimerText}>
+                We use the following third-party services to operate the site:
+              </p>
+              <ul style={styles.disclaimerList}>
+                <li><strong>Google OAuth</strong> — for sign-in authentication</li>
+                <li><strong>Stripe</strong> — for payment processing. Stripe's privacy policy governs how your payment information is handled.</li>
+                <li><strong>Supabase</strong> — for secure database storage of account data</li>
+                <li><strong>Anthropic (Claude AI)</strong> — for generating trade analysis. Ticker queries may be processed by Anthropic's API.</li>
+                <li><strong>Finnhub & Tradier</strong> — for real-time market data</li>
+              </ul>
+
+              <p style={styles.disclaimerSubtitle}>Data Retention</p>
+              <p style={styles.disclaimerText}>
+                We retain your account data for as long as your account is active. You may request deletion of your account and associated data by contacting us. Stripe may retain transaction records independently per their own policies.
+              </p>
+
+              <p style={styles.disclaimerSubtitle}>Cookies</p>
+              <p style={styles.disclaimerText}>
+                We use cookies solely for authentication purposes (to keep you signed in). We do not use tracking or advertising cookies.
+              </p>
+
+              <p style={styles.disclaimerSubtitle}>Children's Privacy</p>
+              <p style={styles.disclaimerText}>
+                This service is not directed at individuals under the age of 18. We do not knowingly collect information from minors.
+              </p>
+
+              <p style={styles.disclaimerSubtitle}>Changes to This Policy</p>
+              <p style={styles.disclaimerText}>
+                We may update this Privacy Policy from time to time. Continued use of the site after changes constitutes acceptance of the updated policy.
+              </p>
+
+              <p style={styles.disclaimerSubtitle}>Contact</p>
+              <p style={styles.disclaimerText}>
+                For any privacy-related questions, please contact us through the site.
+              </p>
+
+            </div>
+            <button onClick={() => setShowPrivacyPolicy(false)} style={styles.disclaimerButton}>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
       <div style={styles.container}>
 
         {/* Hero row */}
@@ -996,6 +1065,10 @@ export default function Home() {
           <button onClick={() => setShowDisclaimer(true)} style={styles.disclaimerLink}>
             View Disclaimer
           </button>
+          <span style={styles.footerDivider}>·</span>
+          <button onClick={() => setShowPrivacyPolicy(true)} style={styles.disclaimerLink}>
+            Privacy Policy
+          </button>
         </div>
 
       </div>
@@ -1095,11 +1168,12 @@ const styles: { [key: string]: React.CSSProperties } = {
   upgradeFeature: { fontSize: "0.9rem", color: "#cbd5e1" },
   upgradeCheckoutBtn: { padding: "14px", borderRadius: "10px", border: "none", background: "#22c55e", color: "#04130a", cursor: "pointer", fontSize: "1rem", fontWeight: 800, width: "100%" },
   upgradeDisclaimer: { margin: 0, fontSize: "0.75rem", color: "#475569", textAlign: "center" as const },
-  footer: { marginTop: "32px", paddingTop: "16px", borderTop: "1px solid #1e293b", textAlign: "center" as const },
+  footer: { marginTop: "32px", paddingTop: "16px", borderTop: "1px solid #1e293b", textAlign: "center" as const, display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" },
+  footerDivider: { color: "#334155", fontSize: "0.8rem" },
   disclaimerLink: { background: "none", border: "none", color: "#475569", cursor: "pointer", fontSize: "0.8rem", textDecoration: "underline", padding: 0 },
-  disclaimerOverlay: { position: "fixed" as const, inset: 0, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(4px)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" },
-  disclaimerModal: { background: "#111827", border: "1px solid #334155", borderRadius: "16px", padding: "28px", maxWidth: "580px", width: "100%", maxHeight: "90vh", boxShadow: "0 25px 60px rgba(0,0,0,0.5)", display: "flex", flexDirection: "column" as const, gap: "16px" },
-  disclaimerScroll: { overflowY: "auto" as const, flex: 1, display: "flex", flexDirection: "column" as const, gap: "12px", paddingRight: "4px", minHeight: 0 },
+  disclaimerOverlay: { position: "fixed" as const, inset: 0, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(4px)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center", padding: "0" },
+  disclaimerModal: { background: "#111827", border: "1px solid #334155", borderRadius: "16px 16px 0 0", padding: "24px 20px 32px", maxWidth: "580px", width: "100%", maxHeight: "85vh", boxShadow: "0 -10px 40px rgba(0,0,0,0.5)", display: "flex", flexDirection: "column" as const, gap: "12px" },
+  disclaimerScroll: { overflowY: "auto" as const, flex: 1, display: "flex", flexDirection: "column" as const, gap: "10px", paddingRight: "4px", minHeight: 0 },
   disclaimerTitle: { margin: 0, fontSize: "1.3rem", color: "#ffffff", textAlign: "center" as const },
   disclaimerMeta: { margin: 0, fontSize: "0.75rem", color: "#475569", textAlign: "center" as const },
   disclaimerSubtitle: { margin: "4px 0 0", fontSize: "0.9rem", fontWeight: 700, color: "#e5e7eb" },
