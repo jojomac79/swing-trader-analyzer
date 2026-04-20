@@ -208,7 +208,7 @@ function DebitCard({ spread }: { spread: LiveDebitSpread }) {
   const shortLabel = spread.strategyType === "Call Debit Spread" ? "Short Call" : "Short Put";
   return (
     <div style={styles.tradeCard}>
-      <h2 style={styles.cardTitle}>AI-Selected Trade Idea</h2>
+      <h2 style={styles.cardTitle}>⚡ Advanced Trade</h2>
       <div style={styles.tradeGrid}>
         <div><strong>Strategy</strong><br />{spread.strategyType}</div>
         <div><strong>Expiration</strong><br />{spread.expiration}</div>
@@ -233,7 +233,7 @@ function CreditCard({ spread }: { spread: LiveCreditSpread }) {
   const sideLabel = spread.strategyType === "Bull Put Spread" ? "Put Side" : "Call Side";
   return (
     <div style={styles.tradeCard}>
-      <h2 style={styles.cardTitle}>AI-Selected Trade Idea</h2>
+      <h2 style={styles.cardTitle}>⚡ Advanced Trade</h2>
       <div style={styles.tradeGrid}>
         <div><strong>Strategy</strong><br />{spread.strategyType}</div>
         <div><strong>Expiration</strong><br />{spread.expiration}</div>
@@ -257,7 +257,7 @@ function DiagonalCard({ spread }: { spread: LiveDiagonalSpread }) {
   const shortLabel = spread.strategyType === "Call Diagonal" ? "Near Short Call" : "Near Short Put";
   return (
     <div style={styles.tradeCard}>
-      <h2 style={styles.cardTitle}>AI-Selected Trade Idea</h2>
+      <h2 style={styles.cardTitle}>⚡ Advanced Trade</h2>
       <div style={styles.tradeGrid}>
         <div><strong>Strategy</strong><br />{spread.strategyType}</div>
         <div><strong>Near Exp</strong><br />{spread.nearExpiration}</div>
@@ -277,7 +277,7 @@ function DiagonalCard({ spread }: { spread: LiveDiagonalSpread }) {
 function IronCondorCard({ spread }: { spread: LiveIronCondor }) {
   return (
     <div style={styles.tradeCard}>
-      <h2 style={styles.cardTitle}>AI-Selected Trade Idea</h2>
+      <h2 style={styles.cardTitle}>⚡ Advanced Trade</h2>
       <div style={styles.tradeGrid}>
         <div><strong>Strategy</strong><br />{spread.strategyType}</div>
         <div><strong>Expiration</strong><br />{spread.expiration}</div>
@@ -294,10 +294,53 @@ function IronCondorCard({ spread }: { spread: LiveIronCondor }) {
   );
 }
 
-function AltTradeCard({ option, parsedLine }: { option: LiveLongOption; parsedLine: string | null }) {
+function BeginnerCard({ bias, symbol, currentPrice }: { bias: "Bullish" | "Bearish"; symbol: string; currentPrice: string }) {
+  const isBullish = bias === "Bullish";
+  return (
+    <div style={styles.beginnerCard}>
+      <div style={styles.beginnerHeader}>
+        <h2 style={styles.cardTitle}>🟢 Beginner Trade</h2>
+        <span style={styles.beginnerBadge}>Shares Only</span>
+      </div>
+      <p style={styles.beginnerSubtitle}>
+        Simple directional play — no options required.
+      </p>
+      <div style={styles.tradeGrid}>
+        <div>
+          <strong>Action</strong><br />
+          <span style={{ color: isBullish ? "#22c55e" : "#ef4444", fontWeight: 700, fontSize: "1.1rem" }}>
+            {isBullish ? "Buy Shares" : "Short Shares"}
+          </span>
+        </div>
+        <div>
+          <strong>Symbol</strong><br />{symbol}
+        </div>
+        <div>
+          <strong>Current Price</strong><br />${currentPrice}
+        </div>
+        <div>
+          <strong>Bias</strong><br />
+          <span style={{ color: isBullish ? "#22c55e" : "#ef4444" }}>{bias}</span>
+        </div>
+      </div>
+      <div style={styles.beginnerNote}>
+        <strong>How it works:</strong> {isBullish
+          ? "Buy shares and hold while the stock moves up. Sell when your target is hit or your thesis changes."
+          : "Borrow and sell shares now, buy them back cheaper later. Profit from the price decline."}
+      </div>
+      <div style={styles.beginnerWarning}>
+        ⚠️ {isBullish
+          ? "Risk: Stock could decline. Only invest what you can afford to lose."
+          : "Risk: Shorting has theoretically unlimited loss if the stock rises. Use a stop loss."}
+      </div>
+    </div>
+  );
+}
+
+ option, parsedLine }: { option: LiveLongOption; parsedLine: string | null }) {
   return (
     <div style={styles.altTradeCard}>
-      <h3 style={styles.altCardTitle}>Alt Trade Idea (max risk)</h3>
+      <h3 style={styles.altCardTitle}>🎯 Max Risk Trade</h3>
       {parsedLine && <div style={styles.altTradeText}>{parsedLine}</div>}
       <div style={styles.tradeGrid}>
         <div><strong>Strategy</strong><br />{option.strategyType}</div>
@@ -1056,7 +1099,10 @@ export default function Home() {
           </div>
         )}
 
-        {/* Trade cards */}
+        {/* Trade cards — Beginner / Advanced / Max Risk */}
+        {meta && (bias === "Bullish" || bias === "Bearish") && (
+          <BeginnerCard bias={bias} symbol={meta.symbol ?? ""} currentPrice={meta.currentPrice ?? ""} />
+        )}
         {selectedTradeCard?.type === "callDebit" && <DebitCard spread={selectedTradeCard.spread} />}
         {selectedTradeCard?.type === "putDebit" && <DebitCard spread={selectedTradeCard.spread} />}
         {selectedTradeCard?.type === "bullPut" && <CreditCard spread={selectedTradeCard.spread} />}
@@ -1144,7 +1190,12 @@ const styles: { [key: string]: React.CSSProperties } = {
   techNote: { fontSize: "0.72rem", color: "#64748b" },
 
   // Existing cards
-  headlinesCard: { background: "#1e293b", border: "1px solid #334155", borderRadius: "14px", padding: "16px", marginBottom: "16px" },
+  beginnerCard: { background: "#0f2a1a", border: "1px solid #166534", borderRadius: "14px", padding: "16px", marginBottom: "16px" },
+  beginnerHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" },
+  beginnerBadge: { background: "#166534", color: "#86efac", fontSize: "0.72rem", fontWeight: 700, padding: "3px 8px", borderRadius: "10px" },
+  beginnerSubtitle: { margin: "0 0 14px", color: "#86efac", fontSize: "0.88rem" },
+  beginnerNote: { marginTop: "14px", padding: "10px 12px", background: "#052e16", borderRadius: "8px", fontSize: "0.85rem", color: "#bbf7d0", lineHeight: 1.6 },
+  beginnerWarning: { marginTop: "8px", padding: "10px 12px", background: "#1c1000", borderRadius: "8px", fontSize: "0.82rem", color: "#fde68a", lineHeight: 1.5 }, { background: "#1e293b", border: "1px solid #334155", borderRadius: "14px", padding: "16px", marginBottom: "16px" },
   headlinesList: { display: "grid", gap: "10px" },
   headlineLink: { display: "block", padding: "12px", borderRadius: "10px", border: "1px solid #334155", background: "#0f172a", color: "#e5e7eb", textDecoration: "none" },
   headlineTitle: { fontWeight: 700, marginBottom: "4px" },
