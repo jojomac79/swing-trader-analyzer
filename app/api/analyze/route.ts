@@ -547,7 +547,7 @@ export async function POST(req: Request) {
       fetch(`https://finnhub.io/api/v1/quote?symbol=${sym}&token=${finnhubKey}`, { cache: "no-store" }),
       fetch(`https://finnhub.io/api/v1/calendar/earnings?symbol=${sym}&from=${formatDate(today)}&to=${formatDate(sixtyDaysOut)}&token=${finnhubKey}`, { cache: "no-store" }),
       fetch(`https://finnhub.io/api/v1/company-news?symbol=${sym}&from=${formatDate(sevenDaysAgo)}&to=${formatDate(today)}&token=${finnhubKey}`, { cache: "no-store" }),
-      fetch(`https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${sym}&outputsize=full&apikey=${alphaKey}`, { cache: "no-store" }),
+      fetch(`https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${sym}&outputsize=compact&apikey=${alphaKey}`, { cache: "no-store" }),
     ]);
 
     if (!quoteRes.ok) return NextResponse.json({ error: `Failed to fetch quote for ${symbol}.` }, { status: 500 });
@@ -557,7 +557,8 @@ export async function POST(req: Request) {
     const earningsData = (await earningsRes.json()) as FinnhubEarningsResponse;
     const newsData = newsRes.ok ? (await newsRes.json()) as FinnhubNewsItem[] : [];
     const candleData = candleRes.ok ? (await candleRes.json()) as FinnhubCandles : null;
-    console.log("CANDLE STATUS:", candleRes.status, "DATA:", JSON.stringify(candleData)?.slice(0, 200));
+    const rawKeys = candleData ? Object.keys(candleData as unknown as object) : [];
+    console.log("CANDLE STATUS:", candleRes.status, "KEYS:", JSON.stringify(rawKeys));
 
     // Parse Alpha Vantage TIME_SERIES_DAILY into FinnhubCandles format
     let parsedCandles: FinnhubCandles | null = null;
