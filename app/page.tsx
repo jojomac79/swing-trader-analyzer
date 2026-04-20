@@ -165,7 +165,7 @@ function DebitCard({ spread }: { spread: LiveDebitSpread }) {
   const shortLabel = spread.strategyType === "Call Debit Spread" ? "Short Call" : "Short Put";
   return (
     <div style={styles.tradeCard}>
-      <h2 style={styles.cardTitle}>⚡ Advanced Trade</h2>
+      <h2 style={styles.cardTitle}>⚡ Advanced Trade Idea</h2>
       <div style={styles.tradeGrid}>
         <div><strong>Strategy</strong><br />{spread.strategyType}</div>
         <div><strong>Expiration</strong><br />{spread.expiration}</div>
@@ -190,7 +190,7 @@ function CreditCard({ spread }: { spread: LiveCreditSpread }) {
   const sideLabel = spread.strategyType === "Bull Put Spread" ? "Put Side" : "Call Side";
   return (
     <div style={styles.tradeCard}>
-      <h2 style={styles.cardTitle}>⚡ Advanced Trade</h2>
+      <h2 style={styles.cardTitle}>⚡ Advanced Trade Idea</h2>
       <div style={styles.tradeGrid}>
         <div><strong>Strategy</strong><br />{spread.strategyType}</div>
         <div><strong>Expiration</strong><br />{spread.expiration}</div>
@@ -214,7 +214,7 @@ function DiagonalCard({ spread }: { spread: LiveDiagonalSpread }) {
   const shortLabel = spread.strategyType === "Call Diagonal" ? "Near Short Call" : "Near Short Put";
   return (
     <div style={styles.tradeCard}>
-      <h2 style={styles.cardTitle}>⚡ Advanced Trade</h2>
+      <h2 style={styles.cardTitle}>⚡ Advanced Trade Idea</h2>
       <div style={styles.tradeGrid}>
         <div><strong>Strategy</strong><br />{spread.strategyType}</div>
         <div><strong>Near Exp</strong><br />{spread.nearExpiration}</div>
@@ -234,7 +234,7 @@ function DiagonalCard({ spread }: { spread: LiveDiagonalSpread }) {
 function IronCondorCard({ spread }: { spread: LiveIronCondor }) {
   return (
     <div style={styles.tradeCard}>
-      <h2 style={styles.cardTitle}>⚡ Advanced Trade</h2>
+      <h2 style={styles.cardTitle}>⚡ Advanced Trade Idea</h2>
       <div style={styles.tradeGrid}>
         <div><strong>Strategy</strong><br />{spread.strategyType}</div>
         <div><strong>Expiration</strong><br />{spread.expiration}</div>
@@ -330,7 +330,7 @@ function BeginnerCard({ bias, symbol, currentPrice }: { bias: "Bullish" | "Beari
   return (
     <div style={styles.beginnerCard}>
       <div style={styles.beginnerHeader}>
-        <h2 style={styles.cardTitle}>🟢 Beginner Trade</h2>
+        <h2 style={styles.cardTitle}>🟢 Beginner Trade Idea</h2>
         <span style={styles.beginnerBadge}>Shares Only</span>
       </div>
       <p style={styles.beginnerSubtitle}>
@@ -371,7 +371,7 @@ function BeginnerCard({ bias, symbol, currentPrice }: { bias: "Bullish" | "Beari
 function AltTradeCard({ option, parsedLine }: { option: LiveLongOption; parsedLine: string | null }) {
   return (
     <div style={styles.altTradeCard}>
-      <h3 style={styles.altCardTitle}>🎯 Max Risk Trade</h3>
+      <h3 style={styles.altCardTitle}>🎯 Max Risk Trade Idea</h3>
       {parsedLine && <div style={styles.altTradeText}>{parsedLine}</div>}
       <div style={styles.tradeGrid}>
         <div><strong>Strategy</strong><br />{option.strategyType}</div>
