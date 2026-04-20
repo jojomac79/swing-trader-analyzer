@@ -160,9 +160,13 @@ function StatBar({ pop, pop50, riskReward }: { pop: number | null; pop50: number
   );
 }
 
-function DebitCard({ spread }: { spread: LiveDebitSpread }) {
+function DebitCard({ spread, currentPrice }: { spread: LiveDebitSpread; currentPrice: string }) {
   const longLabel = spread.strategyType === "Call Debit Spread" ? "Long Call" : "Long Put";
   const shortLabel = spread.strategyType === "Call Debit Spread" ? "Short Call" : "Short Put";
+  const price = parseFloat(currentPrice);
+  const stopLoss = spread.strategyType === "Call Debit Spread"
+    ? (price * 0.95).toFixed(2)
+    : (price * 1.05).toFixed(2);
   return (
     <div style={styles.tradeCard}>
       <h2 style={styles.cardTitle}>⚡ Advanced Trade Idea</h2>
@@ -174,6 +178,7 @@ function DebitCard({ spread }: { spread: LiveDebitSpread }) {
         <div><strong>Breakeven</strong><br />${spread.breakeven.toFixed(2)}</div>
         <div><strong>Max Profit</strong><br />${spread.maxProfit.toFixed(2)}</div>
         <div><strong>Max Loss</strong><br />${spread.maxLoss.toFixed(2)}</div>
+        <div><strong>Stop Loss</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${stopLoss}</span></div>
       </div>
       <div style={styles.quoteRow}>
         <div><strong>{longLabel} Bid/Ask</strong><br />{spread.longBid.toFixed(2)} / {spread.longAsk.toFixed(2)}</div>
@@ -184,10 +189,14 @@ function DebitCard({ spread }: { spread: LiveDebitSpread }) {
   );
 }
 
-function CreditCard({ spread }: { spread: LiveCreditSpread }) {
+function CreditCard({ spread, currentPrice }: { spread: LiveCreditSpread; currentPrice: string }) {
   const shortLabel = spread.strategyType === "Bull Put Spread" ? "Short Put" : "Short Call";
   const longLabel = spread.strategyType === "Bull Put Spread" ? "Long Put" : "Long Call";
   const sideLabel = spread.strategyType === "Bull Put Spread" ? "Put Side" : "Call Side";
+  const price = parseFloat(currentPrice);
+  const stopLoss = spread.strategyType === "Bull Put Spread"
+    ? (price * 0.95).toFixed(2)
+    : (price * 1.05).toFixed(2);
   return (
     <div style={styles.tradeCard}>
       <h2 style={styles.cardTitle}>⚡ Advanced Trade Idea</h2>
@@ -199,6 +208,7 @@ function CreditCard({ spread }: { spread: LiveCreditSpread }) {
         <div><strong>Breakeven</strong><br />${spread.breakeven.toFixed(2)}</div>
         <div><strong>Max Profit</strong><br />${spread.maxProfit.toFixed(2)}</div>
         <div><strong>Max Loss</strong><br />${spread.maxLoss.toFixed(2)}</div>
+        <div><strong>Stop Loss</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${stopLoss}</span></div>
       </div>
       <div style={styles.quoteRow}>
         <div><strong>{shortLabel} Bid/Ask</strong><br />{spread.shortBid.toFixed(2)} / {spread.shortAsk.toFixed(2)}</div>
@@ -209,9 +219,13 @@ function CreditCard({ spread }: { spread: LiveCreditSpread }) {
   );
 }
 
-function DiagonalCard({ spread }: { spread: LiveDiagonalSpread }) {
+function DiagonalCard({ spread, currentPrice }: { spread: LiveDiagonalSpread; currentPrice: string }) {
   const longLabel = spread.strategyType === "Call Diagonal" ? "Far Long Call" : "Far Long Put";
   const shortLabel = spread.strategyType === "Call Diagonal" ? "Near Short Call" : "Near Short Put";
+  const price = parseFloat(currentPrice);
+  const stopLoss = spread.strategyType === "Call Diagonal"
+    ? (price * 0.95).toFixed(2)
+    : (price * 1.05).toFixed(2);
   return (
     <div style={styles.tradeCard}>
       <h2 style={styles.cardTitle}>⚡ Advanced Trade Idea</h2>
@@ -222,6 +236,7 @@ function DiagonalCard({ spread }: { spread: LiveDiagonalSpread }) {
         <div><strong>{spread.strategyType === "Call Diagonal" ? "Call Side" : "Put Side"}</strong><br />{spread.longStrike} / {spread.shortStrike}</div>
         <div><strong>Net Debit</strong><br />${spread.netDebit.toFixed(2)}</div>
         <div><strong>Note</strong><br />Path-dependent</div>
+        <div><strong>Stop Loss</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${stopLoss}</span></div>
       </div>
       <div style={styles.quoteRow}>
         <div><strong>{longLabel} Bid/Ask</strong><br />{spread.longBid.toFixed(2)} / {spread.longAsk.toFixed(2)}</div>
@@ -231,7 +246,10 @@ function DiagonalCard({ spread }: { spread: LiveDiagonalSpread }) {
   );
 }
 
-function IronCondorCard({ spread }: { spread: LiveIronCondor }) {
+function IronCondorCard({ spread, currentPrice }: { spread: LiveIronCondor; currentPrice: string }) {
+  const price = parseFloat(currentPrice);
+  const lowerStop = (price * 0.95).toFixed(2);
+  const upperStop = (price * 1.05).toFixed(2);
   return (
     <div style={styles.tradeCard}>
       <h2 style={styles.cardTitle}>⚡ Advanced Trade Idea</h2>
@@ -245,6 +263,7 @@ function IronCondorCard({ spread }: { spread: LiveIronCondor }) {
         <div><strong>Upper B/E</strong><br />${spread.upperBreakeven.toFixed(2)}</div>
         <div><strong>Max Profit</strong><br />${spread.maxProfit.toFixed(2)}</div>
         <div><strong>Max Loss</strong><br />${spread.maxLoss.toFixed(2)}</div>
+        <div><strong>Stop Loss</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${lowerStop} / ${upperStop}</span></div>
       </div>
       <StatBar pop={spread.pop} pop50={spread.pop50} riskReward={spread.riskReward} />
     </div>
@@ -327,6 +346,10 @@ function TechCard({ tech }: { tech: NonNullable<MetaData["techData"]> }) {
 
 function BeginnerCard({ bias, symbol, currentPrice }: { bias: "Bullish" | "Bearish"; symbol: string; currentPrice: string }) {
   const isBullish = bias === "Bullish";
+  const price = parseFloat(currentPrice);
+  const stopLoss = isBullish
+    ? (price * 0.95).toFixed(2)
+    : (price * 1.05).toFixed(2);
   return (
     <div style={styles.beginnerCard}>
       <div style={styles.beginnerHeader}>
@@ -350,8 +373,8 @@ function BeginnerCard({ bias, symbol, currentPrice }: { bias: "Bullish" | "Beari
           <strong>Current Price</strong><br />${currentPrice}
         </div>
         <div>
-          <strong>Bias</strong><br />
-          <span style={{ color: isBullish ? "#22c55e" : "#ef4444" }}>{bias}</span>
+          <strong>Stop Loss</strong><br />
+          <span style={{ color: "#ef4444", fontWeight: 700 }}>${stopLoss}</span>
         </div>
       </div>
       <div style={styles.beginnerNote}>
@@ -368,7 +391,11 @@ function BeginnerCard({ bias, symbol, currentPrice }: { bias: "Bullish" | "Beari
   );
 }
 
-function AltTradeCard({ option, parsedLine }: { option: LiveLongOption; parsedLine: string | null }) {
+function AltTradeCard({ option, parsedLine, currentPrice }: { option: LiveLongOption; parsedLine: string | null; currentPrice: string }) {
+  const price = parseFloat(currentPrice);
+  const stopLoss = option.strategyType === "Long Call"
+    ? (price * 0.95).toFixed(2)
+    : (price * 1.05).toFixed(2);
   return (
     <div style={styles.altTradeCard}>
       <h3 style={styles.altCardTitle}>🎯 Max Risk Trade Idea</h3>
@@ -380,6 +407,7 @@ function AltTradeCard({ option, parsedLine }: { option: LiveLongOption; parsedLi
         <div><strong>Bid/Ask</strong><br />{option.bid.toFixed(2)} / {option.ask.toFixed(2)}</div>
         <div><strong>Estimated Mid</strong><br />${option.mid.toFixed(2)}</div>
         <div><strong>Max Risk</strong><br />${option.maxRisk.toFixed(2)}</div>
+        <div><strong>Stop Loss</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${stopLoss}</span></div>
       </div>
     </div>
   );
@@ -895,14 +923,14 @@ export default function Home() {
         {meta && (bias === "Bullish" || bias === "Bearish") && (
           <BeginnerCard bias={bias} symbol={meta.symbol ?? ""} currentPrice={meta.currentPrice ?? ""} />
         )}
-        {selectedTradeCard?.type === "callDebit" && <DebitCard spread={selectedTradeCard.spread} />}
-        {selectedTradeCard?.type === "putDebit" && <DebitCard spread={selectedTradeCard.spread} />}
-        {selectedTradeCard?.type === "bullPut" && <CreditCard spread={selectedTradeCard.spread} />}
-        {selectedTradeCard?.type === "bearCall" && <CreditCard spread={selectedTradeCard.spread} />}
-        {selectedTradeCard?.type === "callDiagonal" && <DiagonalCard spread={selectedTradeCard.spread} />}
-        {selectedTradeCard?.type === "putDiagonal" && <DiagonalCard spread={selectedTradeCard.spread} />}
-        {selectedTradeCard?.type === "ironCondor" && <IronCondorCard spread={selectedTradeCard.spread} />}
-        {altTrade && <AltTradeCard option={altTrade} parsedLine={altTradeText} />}
+        {selectedTradeCard?.type === "callDebit" && <DebitCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} />}
+        {selectedTradeCard?.type === "putDebit" && <DebitCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} />}
+        {selectedTradeCard?.type === "bullPut" && <CreditCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} />}
+        {selectedTradeCard?.type === "bearCall" && <CreditCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} />}
+        {selectedTradeCard?.type === "callDiagonal" && <DiagonalCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} />}
+        {selectedTradeCard?.type === "putDiagonal" && <DiagonalCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} />}
+        {selectedTradeCard?.type === "ironCondor" && <IronCondorCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} />}
+        {altTrade && <AltTradeCard option={altTrade} parsedLine={altTradeText} currentPrice={meta?.currentPrice ?? "0"} />}
 
         {/* Headlines */}
         {meta?.recentHeadlines && meta.recentHeadlines.length > 0 && (
