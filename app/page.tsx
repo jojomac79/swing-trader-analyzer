@@ -1084,6 +1084,19 @@ export default function Home() {
           </div>
         )}
 
+        {/* Trade cards — Beginner / Advanced / Max Risk */}
+        {meta && (bias === "Bullish" || bias === "Bearish") && (
+          <BeginnerCard bias={bias} symbol={meta.symbol ?? ""} currentPrice={meta.currentPrice ?? ""} />
+        )}
+        {selectedTradeCard?.type === "callDebit" && <DebitCard spread={selectedTradeCard.spread} />}
+        {selectedTradeCard?.type === "putDebit" && <DebitCard spread={selectedTradeCard.spread} />}
+        {selectedTradeCard?.type === "bullPut" && <CreditCard spread={selectedTradeCard.spread} />}
+        {selectedTradeCard?.type === "bearCall" && <CreditCard spread={selectedTradeCard.spread} />}
+        {selectedTradeCard?.type === "callDiagonal" && <DiagonalCard spread={selectedTradeCard.spread} />}
+        {selectedTradeCard?.type === "putDiagonal" && <DiagonalCard spread={selectedTradeCard.spread} />}
+        {selectedTradeCard?.type === "ironCondor" && <IronCondorCard spread={selectedTradeCard.spread} />}
+        {altTrade && <AltTradeCard option={altTrade} parsedLine={altTradeText} />}
+
         {/* Headlines */}
         {meta?.recentHeadlines && meta.recentHeadlines.length > 0 && (
           <div style={styles.headlinesCard}>
@@ -1098,19 +1111,6 @@ export default function Home() {
             </div>
           </div>
         )}
-
-        {/* Trade cards — Beginner / Advanced / Max Risk */}
-        {meta && (bias === "Bullish" || bias === "Bearish") && (
-          <BeginnerCard bias={bias} symbol={meta.symbol ?? ""} currentPrice={meta.currentPrice ?? ""} />
-        )}
-        {selectedTradeCard?.type === "callDebit" && <DebitCard spread={selectedTradeCard.spread} />}
-        {selectedTradeCard?.type === "putDebit" && <DebitCard spread={selectedTradeCard.spread} />}
-        {selectedTradeCard?.type === "bullPut" && <CreditCard spread={selectedTradeCard.spread} />}
-        {selectedTradeCard?.type === "bearCall" && <CreditCard spread={selectedTradeCard.spread} />}
-        {selectedTradeCard?.type === "callDiagonal" && <DiagonalCard spread={selectedTradeCard.spread} />}
-        {selectedTradeCard?.type === "putDiagonal" && <DiagonalCard spread={selectedTradeCard.spread} />}
-        {selectedTradeCard?.type === "ironCondor" && <IronCondorCard spread={selectedTradeCard.spread} />}
-        {altTrade && <AltTradeCard option={altTrade} parsedLine={altTradeText} />}
 
         {/* Analysis text */}
         {result && (
