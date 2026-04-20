@@ -178,7 +178,7 @@ function DebitCard({ spread, currentPrice }: { spread: LiveDebitSpread; currentP
         <div><strong>Breakeven</strong><br />${spread.breakeven.toFixed(2)}</div>
         <div><strong>Max Profit</strong><br />${spread.maxProfit.toFixed(2)}</div>
         <div><strong>Max Loss</strong><br />${spread.maxLoss.toFixed(2)}</div>
-        <div><strong>Stop Loss</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${stopLoss}</span></div>
+        <div><strong>Stop Loss (Underlying)</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${stopLoss}</span></div>
       </div>
       <div style={styles.quoteRow}>
         <div><strong>{longLabel} Bid/Ask</strong><br />{spread.longBid.toFixed(2)} / {spread.longAsk.toFixed(2)}</div>
@@ -208,7 +208,7 @@ function CreditCard({ spread, currentPrice }: { spread: LiveCreditSpread; curren
         <div><strong>Breakeven</strong><br />${spread.breakeven.toFixed(2)}</div>
         <div><strong>Max Profit</strong><br />${spread.maxProfit.toFixed(2)}</div>
         <div><strong>Max Loss</strong><br />${spread.maxLoss.toFixed(2)}</div>
-        <div><strong>Stop Loss</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${stopLoss}</span></div>
+        <div><strong>Stop Loss (Underlying)</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${stopLoss}</span></div>
       </div>
       <div style={styles.quoteRow}>
         <div><strong>{shortLabel} Bid/Ask</strong><br />{spread.shortBid.toFixed(2)} / {spread.shortAsk.toFixed(2)}</div>
@@ -236,7 +236,7 @@ function DiagonalCard({ spread, currentPrice }: { spread: LiveDiagonalSpread; cu
         <div><strong>{spread.strategyType === "Call Diagonal" ? "Call Side" : "Put Side"}</strong><br />{spread.longStrike} / {spread.shortStrike}</div>
         <div><strong>Net Debit</strong><br />${spread.netDebit.toFixed(2)}</div>
         <div><strong>Note</strong><br />Path-dependent</div>
-        <div><strong>Stop Loss</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${stopLoss}</span></div>
+        <div><strong>Stop Loss (Underlying)</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${stopLoss}</span></div>
       </div>
       <div style={styles.quoteRow}>
         <div><strong>{longLabel} Bid/Ask</strong><br />{spread.longBid.toFixed(2)} / {spread.longAsk.toFixed(2)}</div>
@@ -263,7 +263,7 @@ function IronCondorCard({ spread, currentPrice }: { spread: LiveIronCondor; curr
         <div><strong>Upper B/E</strong><br />${spread.upperBreakeven.toFixed(2)}</div>
         <div><strong>Max Profit</strong><br />${spread.maxProfit.toFixed(2)}</div>
         <div><strong>Max Loss</strong><br />${spread.maxLoss.toFixed(2)}</div>
-        <div><strong>Stop Loss</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${lowerStop} / ${upperStop}</span></div>
+        <div><strong>Stop Loss (Underlying)</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${lowerStop} / ${upperStop}</span></div>
       </div>
       <StatBar pop={spread.pop} pop50={spread.pop50} riskReward={spread.riskReward} />
     </div>
@@ -407,7 +407,7 @@ function AltTradeCard({ option, parsedLine, currentPrice }: { option: LiveLongOp
         <div><strong>Bid/Ask</strong><br />{option.bid.toFixed(2)} / {option.ask.toFixed(2)}</div>
         <div><strong>Estimated Mid</strong><br />${option.mid.toFixed(2)}</div>
         <div><strong>Max Risk</strong><br />${option.maxRisk.toFixed(2)}</div>
-        <div><strong>Stop Loss</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${stopLoss}</span></div>
+        <div><strong>Stop Loss (Underlying)</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${stopLoss}</span></div>
       </div>
     </div>
   );
