@@ -555,6 +555,7 @@ export async function POST(req: Request) {
     const earningsData = (await earningsRes.json()) as FinnhubEarningsResponse;
     const newsData = newsRes.ok ? (await newsRes.json()) as FinnhubNewsItem[] : [];
     const candleData = candleRes.ok ? (await candleRes.json()) as FinnhubCandles : null;
+    console.log("CANDLE STATUS:", candleRes.status, "DATA:", JSON.stringify(candleData)?.slice(0, 200));
 
     const currentPriceNumber = typeof quoteData.c === "number" && quoteData.c > 0 ? quoteData.c : null;
     if (!currentPriceNumber) return NextResponse.json({ error: `Could not determine price for ${symbol}.` }, { status: 500 });
