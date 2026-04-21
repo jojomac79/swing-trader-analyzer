@@ -907,6 +907,23 @@ export default function Home() {
                 {upgradeLoading ? "Redirecting..." : `Get Pro — ${upgradePlan === "monthly" ? "$9.99/mo" : "$107.99/yr"}`}
               </button>
               <p style={styles.upgradeDisclaimer}>Secure checkout via Stripe. Cancel anytime.</p>
+
+              {/* Get Premium teaser */}
+              <div style={styles.getPremiumTeaser}>
+                <div style={styles.getPremiumLabelRow}>
+                  <span style={styles.getPremiumBadge}>🔮 Coming Soon</span>
+                  <span style={styles.getPremiumTitle}>Premium — $19.99/mo</span>
+                </div>
+                <div style={styles.getPremiumFeatures}>
+                  <span style={styles.getPremiumFeature}>📈 Historical Performance</span>
+                  <span style={styles.getPremiumFeature}>🎯 Trade of the Day</span>
+                  <span style={styles.getPremiumFeature}>📊 Earnings Pro</span>
+                  <span style={styles.getPremiumFeature}>📝 Paper Trader Pro</span>
+                </div>
+                <div style={styles.getPremiumBtn}>
+                  Get Premium <span style={{ fontSize: "0.7rem", marginLeft: "6px", opacity: 0.7 }}>— Coming Soon</span>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -967,36 +984,7 @@ export default function Home() {
             <pre style={styles.result}>{result}</pre>
           </div>
         )}
-        {/* Coming Soon */}
-        <div style={styles.comingSoonCard}>
-          <div style={styles.comingSoonHeader}>
-            <h2 style={styles.cardTitle}>🚀 Coming Soon — Pro Tier</h2>
-            <span style={styles.comingSoonBadge}>$19.99/mo</span>
-          </div>
-          <p style={styles.comingSoonSubtitle}>More powerful tools for serious traders.</p>
-          <div style={styles.comingSoonGrid}>
-            {[
-              { icon: "📈", title: "Historical Performance", desc: "Track how past AI setups played out" },
-              { icon: "🎯", title: "Trade of the Day", desc: "One high-conviction setup every morning" },
-              { icon: "📊", title: "Earnings Pro", desc: "Historic data on beating the expected move" },
-              { icon: "📝", title: "Paper Trader Pro", desc: "Track trades on your favorite stocks" },
-            ].map((item) => (
-              <div key={item.title} style={styles.comingSoonItem}>
-                <div style={styles.comingSoonIcon}>{item.icon}</div>
-                <div>
-                  <div style={styles.comingSoonTitle}>{item.title}</div>
-                  <div style={styles.comingSoonDesc}>{item.desc}</div>
-                </div>
-                {!isPremium && <span style={styles.lockIcon}>🔒</span>}
-              </div>
-            ))}
-          </div>
-          {!isPremium && (
-            <button onClick={() => setShowUpgradeModal(true)} style={styles.comingSoonCta}>
-              Upgrade to get early access →
-            </button>
-          )}
-        </div>
+
 
         {/* Tutorial Modal */}
         {showTutorial && (
@@ -1007,24 +995,100 @@ export default function Home() {
                 <button onClick={() => setShowTutorial(false)} style={styles.copyButton}>Close</button>
               </div>
               <div style={styles.tutorialContent}>
+
+                {/* Call Debit Spread */}
                 <div style={styles.tutorialSection}>
-                  <div style={styles.tutorialStratTitle}>📉 Debit Spreads (Directional)</div>
-                  <p style={styles.tutorialText}><strong>Call Debit Spread</strong> — Bullish. Buy a call, sell a higher-strike call. You pay a net debit upfront. Profit if the stock rises above your breakeven by expiration. Max loss is the debit paid.</p>
-                  <p style={styles.tutorialText}><strong>Put Debit Spread</strong> — Bearish. Buy a put, sell a lower-strike put. Profit if the stock falls below your breakeven. Max loss is the debit paid.</p>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                    <div style={styles.tutorialStratTitle}>📈 Call Debit Spread <span style={styles.tutorialBias}>Bullish</span></div>
+                    <a href="https://www.investopedia.com/terms/b/bullcallspread.asp" target="_blank" rel="noopener noreferrer" style={styles.learnMoreLink}>Learn more ↗</a>
+                  </div>
+                  <p style={styles.tutorialText}>Buy a call, sell a higher-strike call. Pay a net debit upfront. Profit if the stock rises above your breakeven by expiration.</p>
+                  <div style={styles.exampleBox}>
+                    <div style={styles.exampleLabel}>Example — Stock at $50</div>
+                    <div style={styles.exampleRow}><span style={styles.exampleBuy}>BUY</span> $50 Call @ $2.50</div>
+                    <div style={styles.exampleRow}><span style={styles.exampleSell}>SELL</span> $55 Call @ $1.00</div>
+                    <div style={styles.exampleStats}>Net Debit: $1.50 · Max Profit: $3.50 · Breakeven: $51.50</div>
+                  </div>
                 </div>
+
+                {/* Put Debit Spread */}
                 <div style={styles.tutorialSection}>
-                  <div style={styles.tutorialStratTitle}>💰 Credit Spreads (Income)</div>
-                  <p style={styles.tutorialText}><strong>Bull Put Spread</strong> — Bullish/Neutral. Sell a put, buy a lower-strike put. You collect a net credit upfront. Profit if the stock stays above your short strike. Max loss is the width minus credit.</p>
-                  <p style={styles.tutorialText}><strong>Bear Call Spread</strong> — Bearish/Neutral. Sell a call, buy a higher-strike call. Profit if the stock stays below your short strike. Max loss is the width minus credit.</p>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                    <div style={styles.tutorialStratTitle}>📉 Put Debit Spread <span style={{ ...styles.tutorialBias, background: "#3f1010", color: "#f87171" }}>Bearish</span></div>
+                    <a href="https://www.investopedia.com/terms/b/bearputspread.asp" target="_blank" rel="noopener noreferrer" style={styles.learnMoreLink}>Learn more ↗</a>
+                  </div>
+                  <p style={styles.tutorialText}>Buy a put, sell a lower-strike put. Profit if the stock falls below your breakeven. Max loss is the debit paid.</p>
+                  <div style={styles.exampleBox}>
+                    <div style={styles.exampleLabel}>Example — Stock at $50</div>
+                    <div style={styles.exampleRow}><span style={styles.exampleBuy}>BUY</span> $50 Put @ $2.50</div>
+                    <div style={styles.exampleRow}><span style={styles.exampleSell}>SELL</span> $45 Put @ $1.00</div>
+                    <div style={styles.exampleStats}>Net Debit: $1.50 · Max Profit: $3.50 · Breakeven: $48.50</div>
+                  </div>
                 </div>
+
+                {/* Bull Put Spread */}
                 <div style={styles.tutorialSection}>
-                  <div style={styles.tutorialStratTitle}>🦅 Iron Condor (Neutral)</div>
-                  <p style={styles.tutorialText}>Combines a Bull Put Spread + Bear Call Spread. Profit when the stock stays in a range between your two short strikes. Ideal in low-volatility, sideways markets. Collect premium on both sides.</p>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                    <div style={styles.tutorialStratTitle}>💰 Bull Put Spread <span style={styles.tutorialBias}>Bullish/Neutral</span></div>
+                    <a href="https://www.investopedia.com/terms/b/bullputspread.asp" target="_blank" rel="noopener noreferrer" style={styles.learnMoreLink}>Learn more ↗</a>
+                  </div>
+                  <p style={styles.tutorialText}>Sell a put, buy a lower-strike put. Collect a net credit upfront. Profit if the stock stays above your short strike.</p>
+                  <div style={styles.exampleBox}>
+                    <div style={styles.exampleLabel}>Example — Stock at $50</div>
+                    <div style={styles.exampleRow}><span style={styles.exampleSell}>SELL</span> $47 Put @ $1.50</div>
+                    <div style={styles.exampleRow}><span style={styles.exampleBuy}>BUY</span> $44 Put @ $0.50</div>
+                    <div style={styles.exampleStats}>Net Credit: $1.00 · Max Profit: $100 · Max Loss: $200</div>
+                  </div>
                 </div>
+
+                {/* Bear Call Spread */}
                 <div style={styles.tutorialSection}>
-                  <div style={styles.tutorialStratTitle}>📅 Diagonal Spreads (Time-Based)</div>
-                  <p style={styles.tutorialText}><strong>Call/Put Diagonal</strong> — Buy a longer-dated option and sell a shorter-dated one at a different strike. Profits from time decay on the short leg while the long leg retains value. Payoff is path-dependent — the stock's path matters, not just the final price.</p>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                    <div style={styles.tutorialStratTitle}>🐻 Bear Call Spread <span style={{ ...styles.tutorialBias, background: "#3f1010", color: "#f87171" }}>Bearish/Neutral</span></div>
+                    <a href="https://www.investopedia.com/terms/b/bearcallspread.asp" target="_blank" rel="noopener noreferrer" style={styles.learnMoreLink}>Learn more ↗</a>
+                  </div>
+                  <p style={styles.tutorialText}>Sell a call, buy a higher-strike call. Collect credit. Profit if the stock stays below your short strike.</p>
+                  <div style={styles.exampleBox}>
+                    <div style={styles.exampleLabel}>Example — Stock at $50</div>
+                    <div style={styles.exampleRow}><span style={styles.exampleSell}>SELL</span> $53 Call @ $1.50</div>
+                    <div style={styles.exampleRow}><span style={styles.exampleBuy}>BUY</span> $56 Call @ $0.50</div>
+                    <div style={styles.exampleStats}>Net Credit: $1.00 · Max Profit: $100 · Max Loss: $200</div>
+                  </div>
                 </div>
+
+                {/* Iron Condor */}
+                <div style={styles.tutorialSection}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                    <div style={styles.tutorialStratTitle}>🦅 Iron Condor <span style={{ ...styles.tutorialBias, background: "#1a2a1a", color: "#86efac" }}>Neutral</span></div>
+                    <a href="https://www.investopedia.com/terms/i/ironcondor.asp" target="_blank" rel="noopener noreferrer" style={styles.learnMoreLink}>Learn more ↗</a>
+                  </div>
+                  <p style={styles.tutorialText}>Bull Put Spread + Bear Call Spread combined. Profit when the stock stays in a range. Ideal in low-volatility, sideways markets.</p>
+                  <div style={styles.exampleBox}>
+                    <div style={styles.exampleLabel}>Example — Stock at $50</div>
+                    <div style={{ ...styles.exampleRow, color: "#94a3b8", fontSize: "0.75rem", marginBottom: "4px" }}>Put side (bullish spread):</div>
+                    <div style={styles.exampleRow}><span style={styles.exampleSell}>SELL</span> $47 Put · <span style={styles.exampleBuy}>BUY</span> $44 Put</div>
+                    <div style={{ ...styles.exampleRow, color: "#94a3b8", fontSize: "0.75rem", margin: "4px 0" }}>Call side (bearish spread):</div>
+                    <div style={styles.exampleRow}><span style={styles.exampleSell}>SELL</span> $53 Call · <span style={styles.exampleBuy}>BUY</span> $56 Call</div>
+                    <div style={styles.exampleStats}>Total Credit: $2.00 · Profit zone: $47–$53</div>
+                  </div>
+                </div>
+
+                {/* Diagonal Spreads */}
+                <div style={styles.tutorialSection}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                    <div style={styles.tutorialStratTitle}>📅 Diagonal Spreads <span style={styles.tutorialBias}>Directional</span></div>
+                    <a href="https://www.investopedia.com/terms/d/diagonalspread.asp" target="_blank" rel="noopener noreferrer" style={styles.learnMoreLink}>Learn more ↗</a>
+                  </div>
+                  <p style={styles.tutorialText}>Buy a longer-dated option, sell a shorter-dated one at a different strike. Profits from time decay on the short leg. Payoff is path-dependent.</p>
+                  <div style={styles.exampleBox}>
+                    <div style={styles.exampleLabel}>Example — Stock at $50 (Call Diagonal)</div>
+                    <div style={styles.exampleRow}><span style={styles.exampleBuy}>BUY</span> $50 Call, 60 days out @ $4.00</div>
+                    <div style={styles.exampleRow}><span style={styles.exampleSell}>SELL</span> $52 Call, 30 days out @ $1.50</div>
+                    <div style={styles.exampleStats}>Net Debit: $2.50 · Short leg decays faster · Repeat monthly</div>
+                  </div>
+                </div>
+
+                {/* Key Terms */}
                 <div style={{ ...styles.tutorialSection, borderBottom: "none", marginBottom: 0, paddingBottom: 0 }}>
                   <div style={styles.tutorialStratTitle}>📌 Key Terms</div>
                   <p style={styles.tutorialText}><strong>PoP</strong> — Probability of Profit. Higher is safer but lower reward.</p>
@@ -1095,17 +1159,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   tutorialSection: { marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid #1e293b" },
   tutorialStratTitle: { fontWeight: 700, color: "#e5e7eb", marginBottom: "8px", fontSize: "0.95rem" },
   tutorialText: { color: "#94a3b8", fontSize: "0.85rem", lineHeight: 1.6, margin: "0 0 6px" },
-  comingSoonCard: { background: "#111827", border: "1px solid #334155", borderRadius: "14px", padding: "20px", marginBottom: "16px" },
-  comingSoonHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" },
-  comingSoonBadge: { background: "#1e3a5f", color: "#60a5fa", fontSize: "0.78rem", fontWeight: 700, padding: "3px 10px", borderRadius: "10px" },
-  comingSoonSubtitle: { color: "#64748b", fontSize: "0.85rem", margin: "0 0 16px" },
-  comingSoonGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "10px", marginBottom: "16px" },
-  comingSoonItem: { display: "flex", alignItems: "flex-start", gap: "10px", background: "#0f172a", borderRadius: "10px", padding: "12px", position: "relative" as const },
-  comingSoonIcon: { fontSize: "1.3rem", flexShrink: 0 },
-  comingSoonTitle: { fontWeight: 700, color: "#e5e7eb", fontSize: "0.88rem", marginBottom: "2px" },
-  comingSoonDesc: { color: "#64748b", fontSize: "0.78rem" },
-  lockIcon: { position: "absolute" as const, top: "8px", right: "8px", fontSize: "0.75rem", opacity: 0.6 },
-  comingSoonCta: { width: "100%", padding: "11px", borderRadius: "10px", border: "none", background: "#1e3a5f", color: "#60a5fa", cursor: "pointer", fontSize: "0.9rem", fontWeight: 700 },
+
   headlinesCard: { background: "#1e293b", border: "1px solid #334155", borderRadius: "14px", padding: "16px", marginBottom: "16px" },
   headlinesList: { display: "grid", gap: "10px" },
   headlineLink: { display: "block", padding: "12px", borderRadius: "10px", border: "1px solid #334155", background: "#0f172a", color: "#e5e7eb", textDecoration: "none" },
@@ -1150,6 +1204,25 @@ const styles: { [key: string]: React.CSSProperties } = {
   footer: { marginTop: "32px", paddingTop: "16px", borderTop: "1px solid #1e293b", textAlign: "center" as const, display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" },
   footerDivider: { color: "#334155", fontSize: "0.8rem" },
   disclaimerLink: { background: "none", border: "none", color: "#475569", cursor: "pointer", fontSize: "0.8rem", textDecoration: "underline", padding: 0 },
+
+  // Tutorial enhancements
+  tutorialBias: { display: "inline-block", marginLeft: "8px", fontSize: "0.7rem", fontWeight: 700, padding: "2px 7px", borderRadius: "8px", background: "#0f2a1a", color: "#86efac", verticalAlign: "middle" },
+  learnMoreLink: { fontSize: "0.75rem", color: "#60a5fa", textDecoration: "none", fontWeight: 600, flexShrink: 0 },
+  exampleBox: { background: "#0f172a", border: "1px solid #1e293b", borderRadius: "8px", padding: "10px 12px", marginTop: "8px" },
+  exampleLabel: { fontSize: "0.7rem", color: "#475569", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: "6px" },
+  exampleRow: { fontSize: "0.83rem", color: "#cbd5e1", marginBottom: "3px", display: "flex", alignItems: "center", gap: "6px" },
+  exampleBuy: { display: "inline-block", background: "#052e16", color: "#86efac", fontSize: "0.65rem", fontWeight: 800, padding: "1px 5px", borderRadius: "4px" },
+  exampleSell: { display: "inline-block", background: "#3f1010", color: "#f87171", fontSize: "0.65rem", fontWeight: 800, padding: "1px 5px", borderRadius: "4px" },
+  exampleStats: { marginTop: "6px", fontSize: "0.75rem", color: "#64748b", borderTop: "1px solid #1e293b", paddingTop: "6px" },
+
+  // Get Premium teaser
+  getPremiumTeaser: { background: "#0a0f1a", border: "1px solid #1e293b", borderRadius: "12px", padding: "14px 16px", opacity: 0.65, cursor: "not-allowed" as const },
+  getPremiumLabelRow: { display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" },
+  getPremiumBadge: { fontSize: "0.65rem", fontWeight: 700, background: "#1e1a3f", color: "#a78bfa", padding: "2px 7px", borderRadius: "10px" },
+  getPremiumTitle: { color: "#64748b", fontSize: "0.9rem", fontWeight: 700 },
+  getPremiumFeatures: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px", marginBottom: "12px" },
+  getPremiumFeature: { fontSize: "0.78rem", color: "#475569" },
+  getPremiumBtn: { width: "100%", padding: "11px", borderRadius: "10px", border: "none", background: "#1e293b", color: "#475569", fontSize: "0.95rem", fontWeight: 700, textAlign: "center" as const, display: "flex", alignItems: "center", justifyContent: "center" },
   disclaimerOverlay: { position: "fixed" as const, inset: 0, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(4px)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center", padding: "0" },
   disclaimerModal: { background: "#111827", border: "1px solid #334155", borderRadius: "16px 16px 0 0", padding: "24px 20px 32px", maxWidth: "580px", width: "100%", maxHeight: "85vh", boxShadow: "0 -10px 40px rgba(0,0,0,0.5)", display: "flex", flexDirection: "column" as const, gap: "12px" },
   disclaimerScroll: { overflowY: "auto" as const, flex: 1, display: "flex", flexDirection: "column" as const, gap: "10px", paddingRight: "4px", minHeight: 0 },
