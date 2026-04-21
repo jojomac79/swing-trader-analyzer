@@ -196,7 +196,7 @@ function DebitCard({ spread, currentPrice, onTutorial }: { spread: LiveDebitSpre
       <StatBar pop={spread.pop} pop50={spread.pop50} riskReward={spread.riskReward} />
       <a href="https://join.robinhood.com/josephm-5b8d2b" target="_blank" rel="noopener noreferrer" style={styles.affiliateBar}>
         <span style={styles.affiliateBarLeft}>
-          <span style={styles.affiliateLogo}>🟢</span>
+          <img src="https://robinhood.com/favicon.ico" alt="Robinhood" style={{ width: "18px", height: "18px", borderRadius: "4px", flexShrink: 0 }} />
           <span><strong>Trade on Robinhood</strong> — commission-free stocks &amp; ETFs</span>
         </span>
         <span style={styles.affiliateCta}>Open Account →</span>
@@ -233,7 +233,7 @@ function CreditCard({ spread, currentPrice, onTutorial }: { spread: LiveCreditSp
       <StatBar pop={spread.pop} pop50={spread.pop50} riskReward={spread.riskReward} />
       <a href="https://join.robinhood.com/josephm-5b8d2b" target="_blank" rel="noopener noreferrer" style={styles.affiliateBar}>
         <span style={styles.affiliateBarLeft}>
-          <span style={styles.affiliateLogo}>🟢</span>
+          <img src="https://robinhood.com/favicon.ico" alt="Robinhood" style={{ width: "18px", height: "18px", borderRadius: "4px", flexShrink: 0 }} />
           <span><strong>Trade on Robinhood</strong> — commission-free stocks &amp; ETFs</span>
         </span>
         <span style={styles.affiliateCta}>Open Account →</span>
@@ -267,7 +267,7 @@ function DiagonalCard({ spread, currentPrice, onTutorial }: { spread: LiveDiagon
       </div>
       <a href="https://join.robinhood.com/josephm-5b8d2b" target="_blank" rel="noopener noreferrer" style={styles.affiliateBar}>
         <span style={styles.affiliateBarLeft}>
-          <span style={styles.affiliateLogo}>🟢</span>
+          <img src="https://robinhood.com/favicon.ico" alt="Robinhood" style={{ width: "18px", height: "18px", borderRadius: "4px", flexShrink: 0 }} />
           <span><strong>Trade on Robinhood</strong> — commission-free stocks &amp; ETFs</span>
         </span>
         <span style={styles.affiliateCta}>Open Account →</span>
@@ -298,7 +298,7 @@ function IronCondorCard({ spread, currentPrice, onTutorial }: { spread: LiveIron
       <StatBar pop={spread.pop} pop50={spread.pop50} riskReward={spread.riskReward} />
       <a href="https://join.robinhood.com/josephm-5b8d2b" target="_blank" rel="noopener noreferrer" style={styles.affiliateBar}>
         <span style={styles.affiliateBarLeft}>
-          <span style={styles.affiliateLogo}>🟢</span>
+          <img src="https://robinhood.com/favicon.ico" alt="Robinhood" style={{ width: "18px", height: "18px", borderRadius: "4px", flexShrink: 0 }} />
           <span><strong>Trade on Robinhood</strong> — commission-free stocks &amp; ETFs</span>
         </span>
         <span style={styles.affiliateCta}>Open Account →</span>
@@ -426,7 +426,7 @@ function BeginnerCard({ bias, symbol, currentPrice }: { bias: "Bullish" | "Beari
       </div>
       <a href="https://join.robinhood.com/josephm-5b8d2b" target="_blank" rel="noopener noreferrer" style={styles.affiliateBar}>
         <span style={styles.affiliateBarLeft}>
-          <span style={styles.affiliateLogo}>🟢</span>
+          <img src="https://robinhood.com/favicon.ico" alt="Robinhood" style={{ width: "18px", height: "18px", borderRadius: "4px", flexShrink: 0 }} />
           <span><strong>Trade on Robinhood</strong> — commission-free stocks &amp; ETFs</span>
         </span>
         <span style={styles.affiliateCta}>Open Account →</span>
@@ -455,7 +455,7 @@ function AltTradeCard({ option, parsedLine, currentPrice }: { option: LiveLongOp
       </div>
       <a href="https://join.robinhood.com/josephm-5b8d2b" target="_blank" rel="noopener noreferrer" style={styles.affiliateBar}>
         <span style={styles.affiliateBarLeft}>
-          <span style={styles.affiliateLogo}>🟢</span>
+          <img src="https://robinhood.com/favicon.ico" alt="Robinhood" style={{ width: "18px", height: "18px", borderRadius: "4px", flexShrink: 0 }} />
           <span><strong>Trade on Robinhood</strong> — commission-free stocks &amp; ETFs</span>
         </span>
         <span style={styles.affiliateCta}>Open Account →</span>
