@@ -619,7 +619,7 @@ export default function Home() {
             <h2 style={styles.disclaimerTitle}>⚠️ Disclaimer</h2>
             <div style={styles.disclaimerScroll}>
 
-              <p style={styles.disclaimerMeta}>Last Updated: April 19, 2026</p>
+              <p style={styles.disclaimerMeta}>Last Updated: April 21, 2026</p>
 
               <p style={styles.disclaimerText}>
                 Please read this disclaimer carefully before using the Swing Trade Analyzer ("the Site"). By accessing or using the Site, you agree to be bound by the terms described below.
@@ -663,6 +663,17 @@ export default function Home() {
                 The Site may display links to third-party websites or content (such as news headlines) that are not owned or controlled by us. We assume no responsibility for the content, accuracy, or practices of any third-party sources.
               </p>
 
+              <p style={styles.disclaimerSubtitle}>Affiliate Disclosure</p>
+              <p style={styles.disclaimerText}>
+                This Site may contain affiliate links to third-party brokerage platforms and financial services. If you click one of these links and open an account or make a purchase, we may receive a commission or referral fee at no additional cost to you.
+              </p>
+              <p style={styles.disclaimerText}>
+                Brokerage recommendations are provided for informational purposes only and are not personalized financial advice. We are not responsible for the products, services, or practices of any linked brokerage or platform. You should independently evaluate any brokerage before opening an account.
+              </p>
+              <p style={styles.disclaimerText}>
+                The presence of an affiliate link does not constitute an endorsement, guarantee, or warranty of any brokerage's services, fees, or suitability for your individual needs.
+              </p>
+
               <p style={styles.disclaimerSubtitle}>Acceptance</p>
               <p style={styles.disclaimerText}>
                 By continuing to use this Site, you confirm that you have read, understood, and agreed to this disclaimer. If you do not agree, please do not use this Site.
@@ -701,7 +712,7 @@ export default function Home() {
             <h2 style={styles.disclaimerTitle}>🔒 Privacy Policy</h2>
             <div style={styles.disclaimerScroll}>
 
-              <p style={styles.disclaimerMeta}>Last Updated: April 19, 2026</p>
+              <p style={styles.disclaimerMeta}>Last Updated: April 21, 2026</p>
 
               <p style={styles.disclaimerText}>
                 This Privacy Policy explains how Swing Trade Analyzer ("we," "us," or "our") collects, uses, and protects your information when you use our website.
