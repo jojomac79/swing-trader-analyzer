@@ -194,6 +194,13 @@ function DebitCard({ spread, currentPrice, onTutorial }: { spread: LiveDebitSpre
         <div><strong>{shortLabel} Bid/Ask</strong><br />{spread.shortBid.toFixed(2)} / {spread.shortAsk.toFixed(2)}</div>
       </div>
       <StatBar pop={spread.pop} pop50={spread.pop50} riskReward={spread.riskReward} />
+      <a href="https://join.robinhood.com/josephm-5b8d2b" target="_blank" rel="noopener noreferrer" style={styles.affiliateBar}>
+        <span style={styles.affiliateBarLeft}>
+          <span style={styles.affiliateLogo}>🟢</span>
+          <span><strong>Trade on Robinhood</strong> — commission-free stocks &amp; ETFs</span>
+        </span>
+        <span style={styles.affiliateCta}>Open Account →</span>
+      </a>
     </div>
   );
 }
@@ -224,6 +231,13 @@ function CreditCard({ spread, currentPrice, onTutorial }: { spread: LiveCreditSp
         <div><strong>{longLabel} Bid/Ask</strong><br />{spread.longBid.toFixed(2)} / {spread.longAsk.toFixed(2)}</div>
       </div>
       <StatBar pop={spread.pop} pop50={spread.pop50} riskReward={spread.riskReward} />
+      <a href="https://join.robinhood.com/josephm-5b8d2b" target="_blank" rel="noopener noreferrer" style={styles.affiliateBar}>
+        <span style={styles.affiliateBarLeft}>
+          <span style={styles.affiliateLogo}>🟢</span>
+          <span><strong>Trade on Robinhood</strong> — commission-free stocks &amp; ETFs</span>
+        </span>
+        <span style={styles.affiliateCta}>Open Account →</span>
+      </a>
     </div>
   );
 }
@@ -251,6 +265,13 @@ function DiagonalCard({ spread, currentPrice, onTutorial }: { spread: LiveDiagon
         <div><strong>{longLabel} Bid/Ask</strong><br />{spread.longBid.toFixed(2)} / {spread.longAsk.toFixed(2)}</div>
         <div><strong>{shortLabel} Bid/Ask</strong><br />{spread.shortBid.toFixed(2)} / {spread.shortAsk.toFixed(2)}</div>
       </div>
+      <a href="https://join.robinhood.com/josephm-5b8d2b" target="_blank" rel="noopener noreferrer" style={styles.affiliateBar}>
+        <span style={styles.affiliateBarLeft}>
+          <span style={styles.affiliateLogo}>🟢</span>
+          <span><strong>Trade on Robinhood</strong> — commission-free stocks &amp; ETFs</span>
+        </span>
+        <span style={styles.affiliateCta}>Open Account →</span>
+      </a>
     </div>
   );
 }
@@ -275,6 +296,13 @@ function IronCondorCard({ spread, currentPrice, onTutorial }: { spread: LiveIron
         <div><strong>Stop Loss (Underlying)</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${lowerStop} / ${upperStop}</span></div>
       </div>
       <StatBar pop={spread.pop} pop50={spread.pop50} riskReward={spread.riskReward} />
+      <a href="https://join.robinhood.com/josephm-5b8d2b" target="_blank" rel="noopener noreferrer" style={styles.affiliateBar}>
+        <span style={styles.affiliateBarLeft}>
+          <span style={styles.affiliateLogo}>🟢</span>
+          <span><strong>Trade on Robinhood</strong> — commission-free stocks &amp; ETFs</span>
+        </span>
+        <span style={styles.affiliateCta}>Open Account →</span>
+      </a>
     </div>
   );
 }
@@ -396,6 +424,13 @@ function BeginnerCard({ bias, symbol, currentPrice }: { bias: "Bullish" | "Beari
           ? "Risk: Stock could decline. Only invest what you can afford to lose."
           : "Risk: Shorting has theoretically unlimited loss if the stock rises. Use a stop loss."}
       </div>
+      <a href="https://join.robinhood.com/josephm-5b8d2b" target="_blank" rel="noopener noreferrer" style={styles.affiliateBar}>
+        <span style={styles.affiliateBarLeft}>
+          <span style={styles.affiliateLogo}>🟢</span>
+          <span><strong>Trade on Robinhood</strong> — commission-free stocks &amp; ETFs</span>
+        </span>
+        <span style={styles.affiliateCta}>Open Account →</span>
+      </a>
     </div>
   );
 }
@@ -418,6 +453,13 @@ function AltTradeCard({ option, parsedLine, currentPrice }: { option: LiveLongOp
         <div><strong>Max Risk</strong><br />${option.maxRisk.toFixed(2)}</div>
         <div><strong>Stop Loss (Underlying)</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${stopLoss}</span></div>
       </div>
+      <a href="https://join.robinhood.com/josephm-5b8d2b" target="_blank" rel="noopener noreferrer" style={styles.affiliateBar}>
+        <span style={styles.affiliateBarLeft}>
+          <span style={styles.affiliateLogo}>🟢</span>
+          <span><strong>Trade on Robinhood</strong> — commission-free stocks &amp; ETFs</span>
+        </span>
+        <span style={styles.affiliateCta}>Open Account →</span>
+      </a>
     </div>
   );
 }
@@ -943,7 +985,7 @@ export default function Home() {
                     <div style={styles.premiumFeature}>🎯 Trade of the Day</div>
                     <div style={styles.premiumFeature}>📊 Earnings Pro</div>
                     <div style={styles.premiumFeature}>📝 Paper Trader Pro</div>
-                    <div style={styles.premiumFeature}>⚡ Everything in Pro</div>
+                    <div style={styles.premiumFeature}>⚡ All Pro features included</div>
                   </div>
                   <div style={styles.getPremiumBtn}>
                     Get Premium <span style={{ fontSize: "0.7rem", marginLeft: "6px", opacity: 0.6 }}>— Coming Soon</span>
@@ -1252,7 +1294,11 @@ const styles: { [key: string]: React.CSSProperties } = {
   footerDivider: { color: "#334155", fontSize: "0.8rem" },
   disclaimerLink: { background: "none", border: "none", color: "#475569", cursor: "pointer", fontSize: "0.8rem", textDecoration: "underline", padding: 0 },
 
-  // Tutorial enhancements
+  // Affiliate bar
+  affiliateBar: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "14px", padding: "10px 14px", borderRadius: "10px", background: "#0f1f0f", border: "1px solid #166534", textDecoration: "none", color: "#86efac", gap: "12px" },
+  affiliateBarLeft: { display: "flex", alignItems: "center", gap: "8px", fontSize: "0.82rem", color: "#86efac" },
+  affiliateLogo: { fontSize: "1rem", flexShrink: 0 },
+  affiliateCta: { fontSize: "0.78rem", fontWeight: 700, color: "#22c55e", whiteSpace: "nowrap" as const, flexShrink: 0 },
   tutorialBias: { display: "inline-block", marginLeft: "8px", fontSize: "0.7rem", fontWeight: 700, padding: "2px 7px", borderRadius: "8px", background: "#0f2a1a", color: "#86efac", verticalAlign: "middle" },
   learnMoreLink: { fontSize: "0.75rem", color: "#60a5fa", textDecoration: "none", fontWeight: 600, flexShrink: 0 },
   exampleBox: { background: "#0f172a", border: "1px solid #1e293b", borderRadius: "8px", padding: "10px 12px", marginTop: "8px" },
