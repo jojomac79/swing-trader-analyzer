@@ -160,7 +160,16 @@ function StatBar({ pop, pop50, riskReward }: { pop: number | null; pop50: number
   );
 }
 
-function DebitCard({ spread, currentPrice }: { spread: LiveDebitSpread; currentPrice: string }) {
+function AdvancedCardHeader({ onTutorial }: { onTutorial: () => void }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+      <h2 style={{ margin: 0, fontSize: "1.2rem", color: "#ffffff" }}>⚡ Advanced Trade Idea</h2>
+      <button onClick={onTutorial} style={styles.tutorialBtn}>📖 How it works</button>
+    </div>
+  );
+}
+
+function DebitCard({ spread, currentPrice, onTutorial }: { spread: LiveDebitSpread; currentPrice: string; onTutorial: () => void }) {
   const longLabel = spread.strategyType === "Call Debit Spread" ? "Long Call" : "Long Put";
   const shortLabel = spread.strategyType === "Call Debit Spread" ? "Short Call" : "Short Put";
   const price = parseFloat(currentPrice);
@@ -169,7 +178,7 @@ function DebitCard({ spread, currentPrice }: { spread: LiveDebitSpread; currentP
     : (price * 1.05).toFixed(2);
   return (
     <div style={styles.tradeCard}>
-      <h2 style={styles.cardTitle}>⚡ Advanced Trade Idea</h2>
+      <AdvancedCardHeader onTutorial={onTutorial} />
       <div style={styles.tradeGrid}>
         <div><strong>Strategy</strong><br />{spread.strategyType}</div>
         <div><strong>Expiration</strong><br />{spread.expiration}</div>
@@ -189,7 +198,7 @@ function DebitCard({ spread, currentPrice }: { spread: LiveDebitSpread; currentP
   );
 }
 
-function CreditCard({ spread, currentPrice }: { spread: LiveCreditSpread; currentPrice: string }) {
+function CreditCard({ spread, currentPrice, onTutorial }: { spread: LiveCreditSpread; currentPrice: string; onTutorial: () => void }) {
   const shortLabel = spread.strategyType === "Bull Put Spread" ? "Short Put" : "Short Call";
   const longLabel = spread.strategyType === "Bull Put Spread" ? "Long Put" : "Long Call";
   const sideLabel = spread.strategyType === "Bull Put Spread" ? "Put Side" : "Call Side";
@@ -199,7 +208,7 @@ function CreditCard({ spread, currentPrice }: { spread: LiveCreditSpread; curren
     : (price * 1.05).toFixed(2);
   return (
     <div style={styles.tradeCard}>
-      <h2 style={styles.cardTitle}>⚡ Advanced Trade Idea</h2>
+      <AdvancedCardHeader onTutorial={onTutorial} />
       <div style={styles.tradeGrid}>
         <div><strong>Strategy</strong><br />{spread.strategyType}</div>
         <div><strong>Expiration</strong><br />{spread.expiration}</div>
@@ -219,7 +228,7 @@ function CreditCard({ spread, currentPrice }: { spread: LiveCreditSpread; curren
   );
 }
 
-function DiagonalCard({ spread, currentPrice }: { spread: LiveDiagonalSpread; currentPrice: string }) {
+function DiagonalCard({ spread, currentPrice, onTutorial }: { spread: LiveDiagonalSpread; currentPrice: string; onTutorial: () => void }) {
   const longLabel = spread.strategyType === "Call Diagonal" ? "Far Long Call" : "Far Long Put";
   const shortLabel = spread.strategyType === "Call Diagonal" ? "Near Short Call" : "Near Short Put";
   const price = parseFloat(currentPrice);
@@ -228,7 +237,7 @@ function DiagonalCard({ spread, currentPrice }: { spread: LiveDiagonalSpread; cu
     : (price * 1.05).toFixed(2);
   return (
     <div style={styles.tradeCard}>
-      <h2 style={styles.cardTitle}>⚡ Advanced Trade Idea</h2>
+      <AdvancedCardHeader onTutorial={onTutorial} />
       <div style={styles.tradeGrid}>
         <div><strong>Strategy</strong><br />{spread.strategyType}</div>
         <div><strong>Near Exp</strong><br />{spread.nearExpiration}</div>
@@ -246,13 +255,13 @@ function DiagonalCard({ spread, currentPrice }: { spread: LiveDiagonalSpread; cu
   );
 }
 
-function IronCondorCard({ spread, currentPrice }: { spread: LiveIronCondor; currentPrice: string }) {
+function IronCondorCard({ spread, currentPrice, onTutorial }: { spread: LiveIronCondor; currentPrice: string; onTutorial: () => void }) {
   const price = parseFloat(currentPrice);
   const lowerStop = (price * 0.95).toFixed(2);
   const upperStop = (price * 1.05).toFixed(2);
   return (
     <div style={styles.tradeCard}>
-      <h2 style={styles.cardTitle}>⚡ Advanced Trade Idea</h2>
+      <AdvancedCardHeader onTutorial={onTutorial} />
       <div style={styles.tradeGrid}>
         <div><strong>Strategy</strong><br />{spread.strategyType}</div>
         <div><strong>Expiration</strong><br />{spread.expiration}</div>
@@ -434,6 +443,7 @@ export default function Home() {
   const [showGoogleGate, setShowGoogleGate] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
 
   // When user signs in, check if they've accepted the disclaimer
   useEffect(() => {
@@ -923,13 +933,13 @@ export default function Home() {
         {meta && (bias === "Bullish" || bias === "Bearish") && (
           <BeginnerCard bias={bias} symbol={meta.symbol ?? ""} currentPrice={meta.currentPrice ?? ""} />
         )}
-        {selectedTradeCard?.type === "callDebit" && <DebitCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} />}
-        {selectedTradeCard?.type === "putDebit" && <DebitCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} />}
-        {selectedTradeCard?.type === "bullPut" && <CreditCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} />}
-        {selectedTradeCard?.type === "bearCall" && <CreditCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} />}
-        {selectedTradeCard?.type === "callDiagonal" && <DiagonalCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} />}
-        {selectedTradeCard?.type === "putDiagonal" && <DiagonalCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} />}
-        {selectedTradeCard?.type === "ironCondor" && <IronCondorCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} />}
+        {selectedTradeCard?.type === "callDebit" && <DebitCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} />}
+        {selectedTradeCard?.type === "putDebit" && <DebitCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} />}
+        {selectedTradeCard?.type === "bullPut" && <CreditCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} />}
+        {selectedTradeCard?.type === "bearCall" && <CreditCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} />}
+        {selectedTradeCard?.type === "callDiagonal" && <DiagonalCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} />}
+        {selectedTradeCard?.type === "putDiagonal" && <DiagonalCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} />}
+        {selectedTradeCard?.type === "ironCondor" && <IronCondorCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} />}
         {altTrade && <AltTradeCard option={altTrade} parsedLine={altTradeText} currentPrice={meta?.currentPrice ?? "0"} />}
 
         {/* Headlines */}
@@ -957,6 +967,76 @@ export default function Home() {
             <pre style={styles.result}>{result}</pre>
           </div>
         )}
+        {/* Coming Soon */}
+        <div style={styles.comingSoonCard}>
+          <div style={styles.comingSoonHeader}>
+            <h2 style={styles.cardTitle}>🚀 Coming Soon — Pro Tier</h2>
+            <span style={styles.comingSoonBadge}>$19.99/mo</span>
+          </div>
+          <p style={styles.comingSoonSubtitle}>More powerful tools for serious traders.</p>
+          <div style={styles.comingSoonGrid}>
+            {[
+              { icon: "📈", title: "Historical Performance", desc: "Track how past AI setups played out" },
+              { icon: "🎯", title: "Trade of the Day", desc: "One high-conviction setup every morning" },
+              { icon: "📊", title: "Earnings Pro", desc: "Historic data on beating the expected move" },
+              { icon: "📝", title: "Paper Trader Pro", desc: "Track trades on your favorite stocks" },
+            ].map((item) => (
+              <div key={item.title} style={styles.comingSoonItem}>
+                <div style={styles.comingSoonIcon}>{item.icon}</div>
+                <div>
+                  <div style={styles.comingSoonTitle}>{item.title}</div>
+                  <div style={styles.comingSoonDesc}>{item.desc}</div>
+                </div>
+                {!isPremium && <span style={styles.lockIcon}>🔒</span>}
+              </div>
+            ))}
+          </div>
+          {!isPremium && (
+            <button onClick={() => setShowUpgradeModal(true)} style={styles.comingSoonCta}>
+              Upgrade to get early access →
+            </button>
+          )}
+        </div>
+
+        {/* Tutorial Modal */}
+        {showTutorial && (
+          <div style={styles.upgradeOverlay} onClick={() => setShowTutorial(false)}>
+            <div style={styles.tutorialModal} onClick={(e) => e.stopPropagation()}>
+              <div style={styles.resultHeader}>
+                <h2 style={styles.cardTitle}>📖 Options Spread Strategies</h2>
+                <button onClick={() => setShowTutorial(false)} style={styles.copyButton}>Close</button>
+              </div>
+              <div style={styles.tutorialContent}>
+                <div style={styles.tutorialSection}>
+                  <div style={styles.tutorialStratTitle}>📉 Debit Spreads (Directional)</div>
+                  <p style={styles.tutorialText}><strong>Call Debit Spread</strong> — Bullish. Buy a call, sell a higher-strike call. You pay a net debit upfront. Profit if the stock rises above your breakeven by expiration. Max loss is the debit paid.</p>
+                  <p style={styles.tutorialText}><strong>Put Debit Spread</strong> — Bearish. Buy a put, sell a lower-strike put. Profit if the stock falls below your breakeven. Max loss is the debit paid.</p>
+                </div>
+                <div style={styles.tutorialSection}>
+                  <div style={styles.tutorialStratTitle}>💰 Credit Spreads (Income)</div>
+                  <p style={styles.tutorialText}><strong>Bull Put Spread</strong> — Bullish/Neutral. Sell a put, buy a lower-strike put. You collect a net credit upfront. Profit if the stock stays above your short strike. Max loss is the width minus credit.</p>
+                  <p style={styles.tutorialText}><strong>Bear Call Spread</strong> — Bearish/Neutral. Sell a call, buy a higher-strike call. Profit if the stock stays below your short strike. Max loss is the width minus credit.</p>
+                </div>
+                <div style={styles.tutorialSection}>
+                  <div style={styles.tutorialStratTitle}>🦅 Iron Condor (Neutral)</div>
+                  <p style={styles.tutorialText}>Combines a Bull Put Spread + Bear Call Spread. Profit when the stock stays in a range between your two short strikes. Ideal in low-volatility, sideways markets. Collect premium on both sides.</p>
+                </div>
+                <div style={styles.tutorialSection}>
+                  <div style={styles.tutorialStratTitle}>📅 Diagonal Spreads (Time-Based)</div>
+                  <p style={styles.tutorialText}><strong>Call/Put Diagonal</strong> — Buy a longer-dated option and sell a shorter-dated one at a different strike. Profits from time decay on the short leg while the long leg retains value. Payoff is path-dependent — the stock's path matters, not just the final price.</p>
+                </div>
+                <div style={{ ...styles.tutorialSection, borderBottom: "none", marginBottom: 0, paddingBottom: 0 }}>
+                  <div style={styles.tutorialStratTitle}>📌 Key Terms</div>
+                  <p style={styles.tutorialText}><strong>PoP</strong> — Probability of Profit. Higher is safer but lower reward.</p>
+                  <p style={styles.tutorialText}><strong>R:R</strong> — Risk/Reward ratio. 2:1 means you make $2 for every $1 risked.</p>
+                  <p style={styles.tutorialText}><strong>Breakeven</strong> — The stock price at expiration where you neither profit nor lose.</p>
+                  <p style={{ ...styles.tutorialText, marginBottom: 0 }}><strong>Stop Loss</strong> — Exit the trade if the underlying stock hits this price to limit losses.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Footer */}
         <div style={styles.footer}>
           <button onClick={() => setShowDisclaimer(true)} style={styles.disclaimerLink}>
@@ -1009,7 +1089,23 @@ const styles: { [key: string]: React.CSSProperties } = {
   beginnerSubtitle: { margin: "0 0 14px", color: "#86efac", fontSize: "0.88rem" },
   beginnerNote: { marginTop: "14px", padding: "10px 12px", background: "#052e16", borderRadius: "8px", fontSize: "0.85rem", color: "#bbf7d0", lineHeight: 1.6 },
   beginnerWarning: { marginTop: "8px", padding: "10px 12px", background: "#1c1000", borderRadius: "8px", fontSize: "0.82rem", color: "#fde68a", lineHeight: 1.5 },
-  headlinesCard: { background: "#1e293b", border: "1px solid #334155", borderRadius: "14px", padding: "16px", marginBottom: "16px" },
+  tutorialBtn: { padding: "4px 10px", borderRadius: "6px", border: "1px solid #334155", background: "transparent", color: "#94a3b8", cursor: "pointer", fontSize: "0.78rem", fontWeight: 600, whiteSpace: "nowrap" as const },
+  tutorialModal: { background: "#111827", border: "1px solid #334155", borderRadius: "16px", padding: "24px", maxWidth: "560px", width: "100%", maxHeight: "85vh", overflowY: "auto" as const, boxShadow: "0 25px 60px rgba(0,0,0,0.5)" },
+  tutorialContent: { marginTop: "16px" },
+  tutorialSection: { marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid #1e293b" },
+  tutorialStratTitle: { fontWeight: 700, color: "#e5e7eb", marginBottom: "8px", fontSize: "0.95rem" },
+  tutorialText: { color: "#94a3b8", fontSize: "0.85rem", lineHeight: 1.6, margin: "0 0 6px" },
+  comingSoonCard: { background: "#111827", border: "1px solid #334155", borderRadius: "14px", padding: "20px", marginBottom: "16px" },
+  comingSoonHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" },
+  comingSoonBadge: { background: "#1e3a5f", color: "#60a5fa", fontSize: "0.78rem", fontWeight: 700, padding: "3px 10px", borderRadius: "10px" },
+  comingSoonSubtitle: { color: "#64748b", fontSize: "0.85rem", margin: "0 0 16px" },
+  comingSoonGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "10px", marginBottom: "16px" },
+  comingSoonItem: { display: "flex", alignItems: "flex-start", gap: "10px", background: "#0f172a", borderRadius: "10px", padding: "12px", position: "relative" as const },
+  comingSoonIcon: { fontSize: "1.3rem", flexShrink: 0 },
+  comingSoonTitle: { fontWeight: 700, color: "#e5e7eb", fontSize: "0.88rem", marginBottom: "2px" },
+  comingSoonDesc: { color: "#64748b", fontSize: "0.78rem" },
+  lockIcon: { position: "absolute" as const, top: "8px", right: "8px", fontSize: "0.75rem", opacity: 0.6 },
+  comingSoonCta: { width: "100%", padding: "11px", borderRadius: "10px", border: "none", background: "#1e3a5f", color: "#60a5fa", cursor: "pointer", fontSize: "0.9rem", fontWeight: 700 }, { background: "#1e293b", border: "1px solid #334155", borderRadius: "14px", padding: "16px", marginBottom: "16px" },
   headlinesList: { display: "grid", gap: "10px" },
   headlineLink: { display: "block", padding: "12px", borderRadius: "10px", border: "1px solid #334155", background: "#0f172a", color: "#e5e7eb", textDecoration: "none" },
   headlineTitle: { fontWeight: 700, marginBottom: "4px" },
