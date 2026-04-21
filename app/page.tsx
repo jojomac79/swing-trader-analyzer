@@ -854,75 +854,92 @@ export default function Home() {
         {/* Upgrade modal */}
         {showUpgradeModal && (
           <div style={styles.upgradeOverlay}>
-            <div style={styles.upgradeModal}>
+            <div style={styles.upgradeModalWide}>
               <button onClick={() => setShowUpgradeModal(false)} style={styles.upgradeCloseBtn}>✕</button>
-              <div style={styles.upgradeBadge}>🚀 Early Access Pricing</div>
-              <h2 style={styles.upgradeTitle}>Upgrade to Pro</h2>
-              <p style={styles.upgradeSubtitle}>Unlimited analyses, every day. No limits, no waiting.</p>
 
-              {/* Plan toggle */}
-              <div style={styles.planToggle}>
-                <button
-                  onClick={() => setUpgradePlan("monthly")}
-                  style={{ ...styles.planToggleBtn, ...(upgradePlan === "monthly" ? styles.planToggleBtnActive : {}) }}
-                >
-                  Monthly
-                </button>
-                <button
-                  onClick={() => setUpgradePlan("yearly")}
-                  style={{ ...styles.planToggleBtn, ...(upgradePlan === "yearly" ? styles.planToggleBtnActive : {}) }}
-                >
-                  Yearly <span style={styles.bestValueBadge}>Best Value — Save $12</span>
-                </button>
+              {/* Header */}
+              <div style={styles.upgradeModalHeader}>
+                <div style={styles.upgradeBadge}>🚀 Early Access Pricing</div>
+                <h2 style={styles.upgradeTitle}>Choose Your Plan</h2>
+                <p style={styles.upgradeSubtitle}>Unlock unlimited analyses and more powerful tools.</p>
+
+                {/* Billing toggle — applies to Pro card */}
+                <div style={styles.planToggle}>
+                  <button
+                    onClick={() => setUpgradePlan("monthly")}
+                    style={{ ...styles.planToggleBtn, ...(upgradePlan === "monthly" ? styles.planToggleBtnActive : {}) }}
+                  >
+                    Monthly
+                  </button>
+                  <button
+                    onClick={() => setUpgradePlan("yearly")}
+                    style={{ ...styles.planToggleBtn, ...(upgradePlan === "yearly" ? styles.planToggleBtnActive : {}) }}
+                  >
+                    Yearly <span style={styles.bestValueBadge}>Save $12</span>
+                  </button>
+                </div>
               </div>
 
-              {/* Price display */}
-              {upgradePlan === "monthly" ? (
-                <div style={styles.priceBox}>
-                  <span style={styles.priceAmount}>$9.99</span>
-                  <span style={styles.pricePer}>/month</span>
-                </div>
-              ) : (
-                <div style={styles.priceBox}>
-                  <span style={styles.priceStrike}>$120.00</span>
-                  <span style={styles.priceAmount}>$107.99</span>
-                  <span style={styles.pricePer}>/year</span>
-                  <div style={styles.priceSavings}>Save $12 vs monthly</div>
-                </div>
-              )}
+              {/* Two-column card grid */}
+              <div style={styles.pricingGrid}>
 
-              {/* Features */}
-              <div style={styles.upgradeFeatures}>
-                <div style={styles.upgradeFeature}>✅ Unlimited analyses per day</div>
-                <div style={styles.upgradeFeature}>✅ Real-time options chain data</div>
-                <div style={styles.upgradeFeature}>✅ AI strategy selection</div>
-                <div style={styles.upgradeFeature}>✅ Early access pricing — locked in forever</div>
-              </div>
+                {/* ── Pro card (active) ── */}
+                <div style={styles.proCard}>
+                  <div style={styles.proCardBadge}>⚡ Pro</div>
+                  <div style={styles.proCardPrice}>
+                    {upgradePlan === "monthly" ? (
+                      <>
+                        <span style={styles.priceAmount}>$9.99</span>
+                        <span style={styles.pricePer}>/mo</span>
+                      </>
+                    ) : (
+                      <>
+                        <span style={styles.priceStrike}>$120</span>
+                        <span style={styles.priceAmount}>$107.99</span>
+                        <span style={styles.pricePer}>/yr</span>
+                      </>
+                    )}
+                  </div>
+                  {upgradePlan === "yearly" && <div style={styles.priceSavings}>Save $12 vs monthly</div>}
+                  <div style={styles.cardDivider} />
+                  <div style={styles.proFeatureList}>
+                    <div style={styles.proFeature}>✅ Unlimited analyses/day</div>
+                    <div style={styles.proFeature}>✅ Real-time options chain</div>
+                    <div style={styles.proFeature}>✅ AI strategy selection</div>
+                    <div style={styles.proFeature}>✅ Early access pricing — locked forever</div>
+                  </div>
+                  <button
+                    onClick={handleUpgrade}
+                    disabled={upgradeLoading}
+                    style={styles.upgradeCheckoutBtn}
+                  >
+                    {upgradeLoading ? "Redirecting..." : `Get Pro — ${upgradePlan === "monthly" ? "$9.99/mo" : "$107.99/yr"}`}
+                  </button>
+                  <p style={styles.upgradeDisclaimer}>Secure checkout via Stripe. Cancel anytime.</p>
+                </div>
 
-              <button
-                onClick={handleUpgrade}
-                disabled={upgradeLoading}
-                style={styles.upgradeCheckoutBtn}
-              >
-                {upgradeLoading ? "Redirecting..." : `Get Pro — ${upgradePlan === "monthly" ? "$9.99/mo" : "$107.99/yr"}`}
-              </button>
-              <p style={styles.upgradeDisclaimer}>Secure checkout via Stripe. Cancel anytime.</p>
+                {/* ── Premium card (dimmed / coming soon) ── */}
+                <div style={styles.premiumCard}>
+                  <div style={styles.premiumCardBadge}>🔮 Coming Soon</div>
+                  <div style={styles.premiumCardPrice}>
+                    <span style={styles.premiumPriceAmount}>$19.99</span>
+                    <span style={styles.premiumPricePer}>/mo</span>
+                  </div>
+                  <div style={{ height: "20px" }} /> {/* spacer to align divider */}
+                  <div style={styles.cardDivider} />
+                  <div style={styles.premiumFeatureList}>
+                    <div style={styles.premiumFeature}>📈 Historical Performance</div>
+                    <div style={styles.premiumFeature}>🎯 Trade of the Day</div>
+                    <div style={styles.premiumFeature}>📊 Earnings Pro</div>
+                    <div style={styles.premiumFeature}>📝 Paper Trader Pro</div>
+                    <div style={styles.premiumFeature}>⚡ Everything in Pro</div>
+                  </div>
+                  <div style={styles.getPremiumBtn}>
+                    Get Premium <span style={{ fontSize: "0.7rem", marginLeft: "6px", opacity: 0.6 }}>— Coming Soon</span>
+                  </div>
+                  <p style={{ ...styles.upgradeDisclaimer, opacity: 0.4 }}>Notify me when available</p>
+                </div>
 
-              {/* Get Premium teaser */}
-              <div style={styles.getPremiumTeaser}>
-                <div style={styles.getPremiumLabelRow}>
-                  <span style={styles.getPremiumBadge}>🔮 Coming Soon</span>
-                  <span style={styles.getPremiumTitle}>Premium — $19.99/mo</span>
-                </div>
-                <div style={styles.getPremiumFeatures}>
-                  <span style={styles.getPremiumFeature}>📈 Historical Performance</span>
-                  <span style={styles.getPremiumFeature}>🎯 Trade of the Day</span>
-                  <span style={styles.getPremiumFeature}>📊 Earnings Pro</span>
-                  <span style={styles.getPremiumFeature}>📝 Paper Trader Pro</span>
-                </div>
-                <div style={styles.getPremiumBtn}>
-                  Get Premium <span style={{ fontSize: "0.7rem", marginLeft: "6px", opacity: 0.7 }}>— Coming Soon</span>
-                </div>
               </div>
             </div>
           </div>
@@ -1127,6 +1144,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   subtitle: { marginTop: "10px", marginBottom: 0, color: "#cbd5e1", lineHeight: 1.5, maxWidth: "640px" },
   statusCard: { background: "#111827", border: "1px solid #334155", borderRadius: "14px", padding: "14px 16px", minWidth: "260px", display: "grid", gap: "8px", boxShadow: "0 10px 30px rgba(0,0,0,0.18)" },
   manageSubButton: { padding: "8px 12px", borderRadius: "8px", border: "1px solid #475569", background: "transparent", color: "#94a3b8", cursor: "pointer", fontSize: "0.85rem", justifySelf: "start" as const },
+  signOutButton: { padding: "8px 12px", borderRadius: "8px", border: "1px solid #334155", background: "transparent", color: "#64748b", cursor: "pointer", fontSize: "0.85rem", justifySelf: "start" as const },
   searchRow: { display: "flex", gap: "10px", marginBottom: "20px", flexWrap: "wrap" },
   input: { flex: 1, minWidth: "240px", padding: "12px 14px", fontSize: "1rem", border: "1px solid #334155", borderRadius: "10px", background: "#1e293b", color: "#fff", outline: "none" },
   button: { padding: "12px 18px", borderRadius: "10px", border: "none", background: "#22c55e", color: "#04130a", cursor: "pointer", fontSize: "1rem", fontWeight: 700, minWidth: "120px" },
@@ -1182,12 +1200,32 @@ const styles: { [key: string]: React.CSSProperties } = {
   gateText: { margin: 0, color: "#cbd5e1", lineHeight: 1.6 },
   result: { whiteSpace: "pre-wrap", lineHeight: 1.7, margin: 0, color: "#e5e7eb", fontSize: "0.98rem" },
   proBadge: { marginLeft: "8px", background: "#22c55e", color: "#04130a", fontSize: "0.7rem", fontWeight: 800, padding: "2px 7px", borderRadius: "10px", verticalAlign: "middle" },
-  upgradeOverlay: { position: "fixed" as const, inset: 0, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(4px)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", paddingTop: "80px" },
+  upgradeOverlay: { position: "fixed" as const, inset: 0, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(4px)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" },
   upgradeModal: { background: "#111827", border: "1px solid #334155", borderRadius: "16px", padding: "32px", maxWidth: "440px", width: "100%", boxShadow: "0 25px 60px rgba(0,0,0,0.5)", display: "flex", flexDirection: "column" as const, gap: "16px", position: "relative" as const },
-  upgradeCloseBtn: { position: "absolute" as const, top: "16px", right: "16px", background: "none", border: "none", color: "#64748b", cursor: "pointer", fontSize: "1.1rem", padding: "4px 8px" },
+  upgradeModalWide: { background: "#111827", border: "1px solid #334155", borderRadius: "16px", padding: "28px 28px 24px", maxWidth: "720px", width: "100%", boxShadow: "0 25px 60px rgba(0,0,0,0.5)", position: "relative" as const },
+  upgradeModalHeader: { marginBottom: "20px", display: "flex", flexDirection: "column" as const, gap: "8px" },
+  pricingGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" },
+
+  // Pro card
+  proCard: { background: "#0f2a1a", border: "2px solid #22c55e", borderRadius: "14px", padding: "20px", display: "flex", flexDirection: "column" as const, gap: "10px" },
+  proCardBadge: { display: "inline-block", alignSelf: "flex-start" as const, background: "#052e16", color: "#22c55e", fontSize: "0.72rem", fontWeight: 800, padding: "3px 9px", borderRadius: "10px", letterSpacing: "0.05em" },
+  proCardPrice: { display: "flex", alignItems: "baseline", gap: "4px", flexWrap: "wrap" as const },
+  proFeatureList: { display: "flex", flexDirection: "column" as const, gap: "7px", flex: 1 },
+  proFeature: { fontSize: "0.82rem", color: "#bbf7d0" },
+  cardDivider: { borderTop: "1px solid #1e293b", margin: "2px 0" },
+
+  // Premium card (dimmed)
+  premiumCard: { background: "#0a0a12", border: "1px solid #1e293b", borderRadius: "14px", padding: "20px", display: "flex", flexDirection: "column" as const, gap: "10px", opacity: 0.6, cursor: "not-allowed" as const },
+  premiumCardBadge: { display: "inline-block", alignSelf: "flex-start" as const, background: "#1e1a3f", color: "#a78bfa", fontSize: "0.72rem", fontWeight: 800, padding: "3px 9px", borderRadius: "10px", letterSpacing: "0.05em" },
+  premiumCardPrice: { display: "flex", alignItems: "baseline", gap: "4px" },
+  premiumPriceAmount: { fontSize: "2.2rem", fontWeight: 800, color: "#475569" },
+  premiumPricePer: { fontSize: "1rem", color: "#334155" },
+  premiumFeatureList: { display: "flex", flexDirection: "column" as const, gap: "7px", flex: 1 },
+  premiumFeature: { fontSize: "0.82rem", color: "#475569" },
+  getPremiumBtn: { padding: "11px", borderRadius: "10px", border: "1px solid #1e293b", background: "#0f172a", color: "#334155", fontSize: "0.9rem", fontWeight: 700, textAlign: "center" as const, display: "flex", alignItems: "center", justifyContent: "center" },
   upgradeBadge: { background: "#1e3a5f", color: "#60a5fa", padding: "4px 10px", borderRadius: "20px", fontSize: "0.75rem", fontWeight: 700, alignSelf: "flex-start" as const },
-  upgradeTitle: { margin: 0, fontSize: "1.6rem", color: "#ffffff", fontWeight: 800 },
-  upgradeSubtitle: { margin: 0, color: "#94a3b8", fontSize: "0.95rem" },
+  upgradeTitle: { margin: 0, fontSize: "1.5rem", color: "#ffffff", fontWeight: 800 },
+  upgradeSubtitle: { margin: 0, color: "#94a3b8", fontSize: "0.9rem" },
   planToggle: { display: "flex", background: "#0f172a", borderRadius: "10px", padding: "4px", gap: "4px" },
   planToggleBtn: { flex: 1, padding: "8px 12px", borderRadius: "8px", border: "none", background: "transparent", color: "#94a3b8", cursor: "pointer", fontSize: "0.9rem", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" },
   planToggleBtnActive: { background: "#1e293b", color: "#ffffff" },
@@ -1197,10 +1235,8 @@ const styles: { [key: string]: React.CSSProperties } = {
   priceAmount: { fontSize: "2.4rem", fontWeight: 800, color: "#ffffff" },
   pricePer: { fontSize: "1rem", color: "#94a3b8" },
   priceSavings: { width: "100%", fontSize: "0.8rem", color: "#22c55e", fontWeight: 600 },
-  upgradeFeatures: { display: "flex", flexDirection: "column" as const, gap: "8px" },
-  upgradeFeature: { fontSize: "0.9rem", color: "#cbd5e1" },
-  upgradeCheckoutBtn: { padding: "14px", borderRadius: "10px", border: "none", background: "#22c55e", color: "#04130a", cursor: "pointer", fontSize: "1rem", fontWeight: 800, width: "100%" },
-  upgradeDisclaimer: { margin: 0, fontSize: "0.75rem", color: "#475569", textAlign: "center" as const },
+  upgradeCheckoutBtn: { padding: "13px", borderRadius: "10px", border: "none", background: "#22c55e", color: "#04130a", cursor: "pointer", fontSize: "0.95rem", fontWeight: 800, width: "100%" },
+  upgradeDisclaimer: { margin: 0, fontSize: "0.72rem", color: "#475569", textAlign: "center" as const },
   footer: { marginTop: "32px", paddingTop: "16px", borderTop: "1px solid #1e293b", textAlign: "center" as const, display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" },
   footerDivider: { color: "#334155", fontSize: "0.8rem" },
   disclaimerLink: { background: "none", border: "none", color: "#475569", cursor: "pointer", fontSize: "0.8rem", textDecoration: "underline", padding: 0 },
@@ -1215,14 +1251,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   exampleSell: { display: "inline-block", background: "#3f1010", color: "#f87171", fontSize: "0.65rem", fontWeight: 800, padding: "1px 5px", borderRadius: "4px" },
   exampleStats: { marginTop: "6px", fontSize: "0.75rem", color: "#64748b", borderTop: "1px solid #1e293b", paddingTop: "6px" },
 
-  // Get Premium teaser
-  getPremiumTeaser: { background: "#0a0f1a", border: "1px solid #1e293b", borderRadius: "12px", padding: "14px 16px", opacity: 0.65, cursor: "not-allowed" as const },
-  getPremiumLabelRow: { display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" },
-  getPremiumBadge: { fontSize: "0.65rem", fontWeight: 700, background: "#1e1a3f", color: "#a78bfa", padding: "2px 7px", borderRadius: "10px" },
-  getPremiumTitle: { color: "#64748b", fontSize: "0.9rem", fontWeight: 700 },
-  getPremiumFeatures: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px", marginBottom: "12px" },
-  getPremiumFeature: { fontSize: "0.78rem", color: "#475569" },
-  getPremiumBtn: { width: "100%", padding: "11px", borderRadius: "10px", border: "none", background: "#1e293b", color: "#475569", fontSize: "0.95rem", fontWeight: 700, textAlign: "center" as const, display: "flex", alignItems: "center", justifyContent: "center" },
+  upgradeCloseBtn: { position: "absolute" as const, top: "16px", right: "16px", background: "none", border: "none", color: "#64748b", cursor: "pointer", fontSize: "1.1rem", padding: "4px 8px" },
   disclaimerOverlay: { position: "fixed" as const, inset: 0, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(4px)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center", padding: "0" },
   disclaimerModal: { background: "#111827", border: "1px solid #334155", borderRadius: "16px 16px 0 0", padding: "24px 20px 32px", maxWidth: "580px", width: "100%", maxHeight: "85vh", boxShadow: "0 -10px 40px rgba(0,0,0,0.5)", display: "flex", flexDirection: "column" as const, gap: "12px" },
   disclaimerScroll: { overflowY: "auto" as const, flex: 1, display: "flex", flexDirection: "column" as const, gap: "10px", paddingRight: "4px", minHeight: 0 },
