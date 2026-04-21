@@ -862,22 +862,6 @@ export default function Home() {
                 <div style={styles.upgradeBadge}>🚀 Early Access Pricing</div>
                 <h2 style={styles.upgradeTitle}>Choose Your Plan</h2>
                 <p style={styles.upgradeSubtitle}>Unlock unlimited analyses and more powerful tools.</p>
-
-                {/* Billing toggle — applies to Pro card */}
-                <div style={styles.planToggle}>
-                  <button
-                    onClick={() => setUpgradePlan("monthly")}
-                    style={{ ...styles.planToggleBtn, ...(upgradePlan === "monthly" ? styles.planToggleBtnActive : {}) }}
-                  >
-                    Monthly
-                  </button>
-                  <button
-                    onClick={() => setUpgradePlan("yearly")}
-                    style={{ ...styles.planToggleBtn, ...(upgradePlan === "yearly" ? styles.planToggleBtnActive : {}) }}
-                  >
-                    Yearly <span style={styles.bestValueBadge}>Save $12</span>
-                  </button>
-                </div>
               </div>
 
               {/* Two-column card grid */}
@@ -886,6 +870,22 @@ export default function Home() {
                 {/* ── Pro card (active) ── */}
                 <div style={styles.proCard}>
                   <div style={styles.proCardBadge}>⚡ Pro</div>
+
+                  {/* Billing toggle lives inside Pro card */}
+                  <div style={styles.planToggle}>
+                    <button
+                      onClick={() => setUpgradePlan("monthly")}
+                      style={{ ...styles.planToggleBtn, ...(upgradePlan === "monthly" ? styles.planToggleBtnActive : {}) }}
+                    >
+                      Monthly
+                    </button>
+                    <button
+                      onClick={() => setUpgradePlan("yearly")}
+                      style={{ ...styles.planToggleBtn, ...(upgradePlan === "yearly" ? styles.planToggleBtnActive : {}) }}
+                    >
+                      Yearly <span style={styles.bestValueBadge}>Save $12</span>
+                    </button>
+                  </div>
                   <div style={styles.proCardPrice}>
                     {upgradePlan === "monthly" ? (
                       <>
