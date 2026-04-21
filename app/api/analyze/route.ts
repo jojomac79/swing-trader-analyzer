@@ -608,6 +608,7 @@ export async function POST(req: Request) {
     // Analyst upgrades/downgrades — last 90 days, max 5
     const ninetyDaysAgo = new Date(); ninetyDaysAgo.setDate(today.getDate() - 90);
     const upgradeData = upgradeRes.ok ? (await upgradeRes.json()) as FinnhubUpgradeItem[] : [];
+    console.log("UPGRADE STATUS:", upgradeRes.status, "DATA:", JSON.stringify(upgradeData)?.slice(0, 300));
     const recentUpgrades: AnalystItem[] = Array.isArray(upgradeData)
       ? upgradeData.slice(0, 8).map((u) => ({
           action: u.action ?? "",
