@@ -547,7 +547,7 @@ export async function POST(req: Request) {
       fetch(`https://finnhub.io/api/v1/quote?symbol=${sym}&token=${finnhubKey}`, { cache: "no-store" }),
       fetch(`https://finnhub.io/api/v1/calendar/earnings?symbol=${sym}&from=${formatDate(today)}&to=${formatDate(sixtyDaysOut)}&token=${finnhubKey}`, { cache: "no-store" }),
       fetch(`https://finnhub.io/api/v1/company-news?symbol=${sym}&from=${formatDate(sevenDaysAgo)}&to=${formatDate(today)}&token=${finnhubKey}`, { cache: "no-store" }),
-      fetch(`https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${sym}&outputsize=compact&apikey=${alphaKey}`, { cache: "no-store" }),
+      fetch(`https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${sym}&outputsize=full&apikey=${alphaKey}`, { cache: "no-store" }),
     ]);
 
     if (!quoteRes.ok) return NextResponse.json({ error: `Failed to fetch quote for ${symbol}.` }, { status: 500 });
@@ -576,6 +576,18 @@ export async function POST(req: Request) {
           v.push(parseFloat(day["5. volume"]));
         }
         parsedCandles = { c, h, l, o, v, s: "ok" };
+        // Trim to last 252 trading days (~1 year) for indicator accuracy
+        // but keep full range so 52W high/low is accurate
+        const fullLen = c.length;
+        const trimLen = Math.min(fullLen, 252);
+        parsedCandles = {
+          c: c.slice(fullLen - trimLen),
+          h: h.slice(fullLen - trimLen),
+          l: l.slice(fullLen - trimLen),
+          o: o.slice(fullLen - trimLen),
+          v: v.slice(fullLen - trimLen),
+          s: "ok"
+        };
       }
     }
 
@@ -625,10 +637,6 @@ export async function POST(req: Request) {
     if (liveBullPut)   liveBullPut.expiration   = nearExpiration;
     if (liveBearCall)  liveBearCall.expiration  = nearExpiration;
 
-    // Filter credit spreads with PoP < 65% — low PoP on credit spreads is a red flag
-    if (liveBullPut && liveBullPut.pop !== null && liveBullPut.pop < 65) liveBullPut = null;
-    if (liveBearCall && liveBearCall.pop !== null && liveBearCall.pop < 65) liveBearCall = null;
-
     const liveCallDiagonal = farExpiration && farOptions.length ? buildCallDiagonal(nearOptions, farOptions, currentPriceNumber, nearExpiration, farExpiration) : null;
     const livePutDiagonal  = farExpiration && farOptions.length ? buildPutDiagonal(nearOptions, farOptions, currentPriceNumber, nearExpiration, farExpiration) : null;
     const liveIronCondor   = buildIronCondor(liveBullPut, liveBearCall);
@@ -672,7 +680,7 @@ Format EXACTLY (no markdown bold on the first bullet of Overall Bias or Preferre
 
 Overall Bias:
 - (Bullish / Bearish / Neutral) ← plain text, no bold
-- Confidence: (X/10) ← a number like 6/10 or 7.5/10, no other text on this line
+- (Low / Medium / High conviction)
 - (One sentence explaining why)
 
 Preferred Strategy:
@@ -701,8 +709,6 @@ Short-Term Outlook (1-4 weeks):
 
 Trade Idea:
 - (Live strategy with real strikes, expiration, debit/credit)
-- Target: (price target or % profit target, e.g. "50% of max profit" or "$X price target")
-- Invalidate: (specific price level that breaks the thesis, e.g. "break above $340 with volume")
 - (If diagonal, mention path-dependent payoff)
 - (If No Trade, say what confirmation is needed)
 
