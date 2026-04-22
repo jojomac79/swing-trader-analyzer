@@ -14,7 +14,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <head>
+      <body>
+        <Providers>{children}</Providers>
         {/* Meta Pixel */}
         <Script id="meta-pixel" strategy="afterInteractive">
           {`
@@ -39,9 +40,6 @@ export default function RootLayout({
             alt=""
           />
         </noscript>
-      </head>
-      <body>
-        <Providers>{children}</Providers>
       </body>
     </html>
   );
