@@ -543,11 +543,10 @@ export async function POST(req: Request) {
     const sixtyDaysOut = new Date(); sixtyDaysOut.setDate(today.getDate() + 60);
     const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(today.getDate() - 7);
 
-    const [quoteRes, earningsRes, newsRes, candleRes] = await Promise.all([
+    const [quoteRes, earningsRes, newsRes] = await Promise.all([
       fetch(`https://finnhub.io/api/v1/quote?symbol=${sym}&token=${finnhubKey}`, { cache: "no-store" }),
       fetch(`https://finnhub.io/api/v1/calendar/earnings?symbol=${sym}&from=${formatDate(today)}&to=${formatDate(sixtyDaysOut)}&token=${finnhubKey}`, { cache: "no-store" }),
       fetch(`https://finnhub.io/api/v1/company-news?symbol=${sym}&from=${formatDate(sevenDaysAgo)}&to=${formatDate(today)}&token=${finnhubKey}`, { cache: "no-store" }),
-      fetch(`https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${sym}&outputsize=full&apikey=${alphaKey}`, { cache: "no-store" }),
     ]);
 
     if (!quoteRes.ok) return NextResponse.json({ error: `Failed to fetch quote for ${symbol}.` }, { status: 500 });
@@ -556,14 +555,30 @@ export async function POST(req: Request) {
     const quoteData = (await quoteRes.json()) as FinnhubQuote;
     const earningsData = (await earningsRes.json()) as FinnhubEarningsResponse;
     const newsData = newsRes.ok ? (await newsRes.json()) as FinnhubNewsItem[] : [];
-    const candleData = candleRes.ok ? (await candleRes.json()) as FinnhubCandles : null;
+
+    // Fetch full year of candle data; fall back to compact if full times out or rate-limited
+    let candleData: Record<string, unknown> | null = null;
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const fullRes = await fetch(`https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${sym}&outputsize=full&apikey=${alphaKey}`, { cache: "no-store", signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (fullRes.ok) {
+        const json = await fullRes.json() as Record<string, unknown>;
+        if (json["Time Series (Daily)"]) candleData = json;
+      }
+    } catch {
+      try {
+        const compactRes = await fetch(`https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${sym}&outputsize=compact&apikey=${alphaKey}`, { cache: "no-store" });
+        if (compactRes.ok) candleData = await compactRes.json() as Record<string, unknown>;
+      } catch { /* silent fail */ }
+    }
 
 
     // Parse Alpha Vantage TIME_SERIES_DAILY into FinnhubCandles format
     let parsedCandles: FinnhubCandles | null = null;
     if (candleData) {
-      const raw = candleData as unknown as Record<string, unknown>;
-      const timeSeries = raw["Time Series (Daily)"] as Record<string, Record<string, string>> | undefined;
+      const timeSeries = candleData["Time Series (Daily)"] as Record<string, Record<string, string>> | undefined;
       if (timeSeries) {
         const dates = Object.keys(timeSeries).sort(); // ascending
         const c: number[] = [], h: number[] = [], l: number[] = [], o: number[] = [], v: number[] = [];
@@ -575,7 +590,7 @@ export async function POST(req: Request) {
           o.push(parseFloat(day["1. open"]));
           v.push(parseFloat(day["5. volume"]));
         }
-        // Use last 252 trading days (~1 year) for accurate 52W high/low + indicators
+        // Trim to last 252 trading days (~1 year) for accurate 52W high/low + indicators
         const trim = Math.max(0, c.length - 252);
         parsedCandles = {
           c: c.slice(trim), h: h.slice(trim), l: l.slice(trim),
@@ -630,7 +645,7 @@ export async function POST(req: Request) {
     if (liveBullPut)   liveBullPut.expiration   = nearExpiration;
     if (liveBearCall)  liveBearCall.expiration  = nearExpiration;
 
-    // Filter credit spreads with PoP < 65% — low PoP on credit spreads is a red flag
+    // Filter credit spreads with PoP < 65%
     if (liveBullPut && liveBullPut.pop !== null && liveBullPut.pop < 65) liveBullPut = null;
     if (liveBearCall && liveBearCall.pop !== null && liveBearCall.pop < 65) liveBearCall = null;
 
