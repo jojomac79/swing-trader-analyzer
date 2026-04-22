@@ -575,18 +575,11 @@ export async function POST(req: Request) {
           o.push(parseFloat(day["1. open"]));
           v.push(parseFloat(day["5. volume"]));
         }
-        parsedCandles = { c, h, l, o, v, s: "ok" };
-        // Trim to last 252 trading days (~1 year) for indicator accuracy
-        // but keep full range so 52W high/low is accurate
-        const fullLen = c.length;
-        const trimLen = Math.min(fullLen, 252);
+        // Use last 252 trading days (~1 year) for accurate 52W high/low + indicators
+        const trim = Math.max(0, c.length - 252);
         parsedCandles = {
-          c: c.slice(fullLen - trimLen),
-          h: h.slice(fullLen - trimLen),
-          l: l.slice(fullLen - trimLen),
-          o: o.slice(fullLen - trimLen),
-          v: v.slice(fullLen - trimLen),
-          s: "ok"
+          c: c.slice(trim), h: h.slice(trim), l: l.slice(trim),
+          o: o.slice(trim), v: v.slice(trim), s: "ok"
         };
       }
     }
@@ -637,6 +630,10 @@ export async function POST(req: Request) {
     if (liveBullPut)   liveBullPut.expiration   = nearExpiration;
     if (liveBearCall)  liveBearCall.expiration  = nearExpiration;
 
+    // Filter credit spreads with PoP < 65% — low PoP on credit spreads is a red flag
+    if (liveBullPut && liveBullPut.pop !== null && liveBullPut.pop < 65) liveBullPut = null;
+    if (liveBearCall && liveBearCall.pop !== null && liveBearCall.pop < 65) liveBearCall = null;
+
     const liveCallDiagonal = farExpiration && farOptions.length ? buildCallDiagonal(nearOptions, farOptions, currentPriceNumber, nearExpiration, farExpiration) : null;
     const livePutDiagonal  = farExpiration && farOptions.length ? buildPutDiagonal(nearOptions, farOptions, currentPriceNumber, nearExpiration, farExpiration) : null;
     const liveIronCondor   = buildIronCondor(liveBullPut, liveBearCall);
@@ -680,7 +677,7 @@ Format EXACTLY (no markdown bold on the first bullet of Overall Bias or Preferre
 
 Overall Bias:
 - (Bullish / Bearish / Neutral) ← plain text, no bold
-- (Low / Medium / High conviction)
+- Confidence: (X/10) ← a number like 6/10 or 7.5/10, no other text on this line
 - (One sentence explaining why)
 
 Preferred Strategy:
@@ -709,6 +706,8 @@ Short-Term Outlook (1-4 weeks):
 
 Trade Idea:
 - (Live strategy with real strikes, expiration, debit/credit)
+- Target: (price target or % profit target, e.g. "50% of max profit" or "$X price target")
+- Invalidate: (specific price level that breaks the thesis, e.g. "break above $340 with volume")
 - (If diagonal, mention path-dependent payoff)
 - (If No Trade, say what confirmation is needed)
 
