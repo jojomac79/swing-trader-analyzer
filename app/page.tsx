@@ -89,6 +89,27 @@ function getBiasFromResult(result: string): "Bullish" | "Bearish" | "Neutral" | 
   return null;
 }
 
+function getConfidenceScore(result: string): string | null {
+  if (!result) return null;
+  const clean = result.replace(/\*\*/g, "");
+  const match = clean.match(/Confidence:\s*([\d.]+\/10)/i);
+  return match?.[1] ?? null;
+}
+
+function getTradeTarget(result: string): string | null {
+  if (!result) return null;
+  const clean = result.replace(/\*\*/g, "");
+  const match = clean.match(/Target:\s*([^\n]+)/i);
+  return match?.[1]?.trim() ?? null;
+}
+
+function getTradeInvalidate(result: string): string | null {
+  if (!result) return null;
+  const clean = result.replace(/\*\*/g, "");
+  const match = clean.match(/Invalidate:\s*([^\n]+)/i);
+  return match?.[1]?.trim() ?? null;
+}
+
 function getPreferredStrategy(result: string): string | null {
   if (!result) return null;
   const clean = result.replace(/\*\*/g, "");
@@ -136,6 +157,65 @@ function getPopColor(pop: number): string {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
+
+function TradeSummaryCard({
+  bias, confidence, strategy, target, invalidate,
+}: {
+  bias: "Bullish" | "Bearish" | "Neutral" | null;
+  confidence: string | null;
+  strategy: string | null;
+  target: string | null;
+  invalidate: string | null;
+}) {
+  if (!bias && !strategy) return null;
+  const biasColor = bias === "Bullish" ? "#22c55e" : bias === "Bearish" ? "#ef4444" : "#f59e0b";
+  const biasIcon = bias === "Bullish" ? "📈" : bias === "Bearish" ? "📉" : "↔️";
+  return (
+    <div style={styles.summaryCard}>
+      <div style={styles.summaryHeader}>
+        <span style={styles.summaryIcon}>🎯</span>
+        <span style={styles.summaryTitle}>TRADE SUMMARY</span>
+      </div>
+      <div style={styles.summaryGrid}>
+        {bias && (
+          <div style={styles.summaryItem}>
+            <span style={styles.summaryLabel}>Bias</span>
+            <span style={{ ...styles.summaryValue, color: biasColor }}>{biasIcon} {bias}</span>
+          </div>
+        )}
+        {confidence && (
+          <div style={styles.summaryItem}>
+            <span style={styles.summaryLabel}>Confidence</span>
+            <span style={{ ...styles.summaryValue, color: "#f59e0b" }}>{confidence}</span>
+          </div>
+        )}
+        {strategy && strategy !== "No Trade" && (
+          <div style={{ ...styles.summaryItem, gridColumn: "1 / -1" }}>
+            <span style={styles.summaryLabel}>Best Play</span>
+            <span style={{ ...styles.summaryValue, color: "#e5e7eb", fontSize: "0.95rem" }}>→ {strategy}</span>
+          </div>
+        )}
+        {target && (
+          <div style={styles.summaryItem}>
+            <span style={styles.summaryLabel}>Target</span>
+            <span style={{ ...styles.summaryValue, color: "#22c55e", fontSize: "0.85rem" }}>{target}</span>
+          </div>
+        )}
+        {invalidate && (
+          <div style={styles.summaryItem}>
+            <span style={styles.summaryLabel}>Invalidate</span>
+            <span style={{ ...styles.summaryValue, color: "#ef4444", fontSize: "0.85rem" }}>{invalidate}</span>
+          </div>
+        )}
+        {strategy === "No Trade" && (
+          <div style={{ ...styles.summaryItem, gridColumn: "1 / -1" }}>
+            <span style={{ color: "#94a3b8", fontSize: "0.88rem" }}>⏸ No clear edge — wait for confirmation</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function StatBar({ pop, pop50, riskReward }: { pop: number | null; pop50: number | null; riskReward: number }) {
   return (
@@ -515,6 +595,10 @@ export default function Home() {
   const bias = useMemo(() => getBiasFromResult(result), [result]);
   const preferredStrategy = useMemo(() => getPreferredStrategy(result), [result]);
   const altTradeText = useMemo(() => getAltTradeText(result), [result]);
+  const confidenceScore = useMemo(() => getConfidenceScore(result), [result]);
+  const tradeTarget = useMemo(() => getTradeTarget(result), [result]);
+  const tradeInvalidate = useMemo(() => getTradeInvalidate(result), [result]);
+  const [showFullAnalysis, setShowFullAnalysis] = useState(false);
 
   const selectedTradeCard = useMemo<SelectedTradeCard>(() => {
     if (!meta) return null;
@@ -1013,6 +1097,17 @@ export default function Home() {
           </div>
         )}
 
+        {/* Trade Summary Card — shown first when results are available */}
+        {result && (
+          <TradeSummaryCard
+            bias={bias}
+            confidence={confidenceScore}
+            strategy={preferredStrategy}
+            target={tradeTarget}
+            invalidate={tradeInvalidate}
+          />
+        )}
+
         {/* Technical Analysis Card */}
         {meta?.techData && <TechCard tech={meta.techData} />}
 
@@ -1044,14 +1139,19 @@ export default function Home() {
           </div>
         )}
 
-        {/* Analysis text */}
+        {/* Analysis text — collapsed by default */}
         {result && (
           <div style={styles.resultCard}>
             <div style={styles.resultHeader}>
               <h2 style={styles.cardTitle}>Swing Trade Analysis</h2>
-              <button onClick={handleCopy} style={styles.copyButton}>{copied ? "Copied" : "Copy analysis"}</button>
+              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <button onClick={() => setShowFullAnalysis(v => !v)} style={styles.copyButton}>
+                  {showFullAnalysis ? "Hide Analysis ▲" : "View Full Analysis ▼"}
+                </button>
+                <button onClick={handleCopy} style={styles.copyButton}>{copied ? "Copied" : "Copy"}</button>
+              </div>
             </div>
-            <pre style={styles.result}>{result}</pre>
+            {showFullAnalysis && <pre style={styles.result}>{result}</pre>}
           </div>
         )}
 
@@ -1190,6 +1290,15 @@ export default function Home() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles: { [key: string]: React.CSSProperties } = {
   main: { minHeight: "100vh", padding: "40px 16px", color: "#e5e7eb", background: "#0f172a" },
+  // Trade Summary Card
+  summaryCard: { background: "#111827", border: "1px solid #334155", borderRadius: "14px", padding: "16px 18px", marginBottom: "16px", boxShadow: "0 4px 20px rgba(0,0,0,0.3)" },
+  summaryHeader: { display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" },
+  summaryIcon: { fontSize: "1rem" },
+  summaryTitle: { fontSize: "0.72rem", fontWeight: 800, color: "#64748b", letterSpacing: "0.12em", textTransform: "uppercase" as const },
+  summaryGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" },
+  summaryItem: { display: "flex", flexDirection: "column" as const, gap: "3px" },
+  summaryLabel: { fontSize: "0.68rem", color: "#475569", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.08em" },
+  summaryValue: { fontSize: "1.1rem", fontWeight: 700, color: "#e5e7eb", lineHeight: 1.3 },
   container: { maxWidth: "1100px", margin: "0 auto" },
   heroRow: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "16px", flexWrap: "wrap", marginBottom: "24px" },
   heroText: { flex: 1, minWidth: "280px" },
