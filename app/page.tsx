@@ -11,6 +11,9 @@ type LiveCreditSpread = {
   shortMid: number; longMid: number; netCredit: number; width: number;
   maxProfit: number; maxLoss: number; breakeven: number;
   pop: number | null; pop50: number | null; riskReward: number;
+  returnOnRisk?: number; maxLossToProfitRatio?: number;
+  qualityLabel?: "Trader-Grade Setup" | "Low Return Setup";
+  passesTradeFilter?: boolean;
 };
 
 type LiveDebitSpread = {
@@ -30,6 +33,9 @@ type LiveIronCondor = {
   width: number; maxProfit: number; maxLoss: number;
   lowerBreakeven: number; upperBreakeven: number;
   pop: number | null; pop50: number | null; riskReward: number;
+  returnOnRisk?: number; maxLossToProfitRatio?: number;
+  qualityLabel?: "Trader-Grade Setup" | "Low Return Setup";
+  passesTradeFilter?: boolean;
 };
 
 type LiveDiagonalSpread = {
@@ -47,16 +53,26 @@ type LiveLongOption = {
 
 type HeadlineItem = { headline: string; source: string; url: string; };
 
+type TradeFilters = {
+  minReturnOnRisk: number;
+  idealReturnOnRisk: number;
+  maxLossToProfitRatio: number;
+  preferredShortDeltaMin: number;
+  preferredShortDeltaMax: number;
+};
+
 type MetaData = {
   symbol?: string; originalInput?: string;
   resolvedFromName?: boolean; resolvedDisplayName?: string | null;
   currentPrice?: string; nextEarnings?: string;
-  nearExpiration?: string; farExpiration?: string | null;
+  selectedExpiration?: string | null; nearExpiration?: string; farExpiration?: string | null;
   liveCallDebit?: LiveDebitSpread | null; livePutDebit?: LiveDebitSpread | null;
   liveBullPut?: LiveCreditSpread | null; liveBearCall?: LiveCreditSpread | null;
+  liveBullPutSpread?: LiveCreditSpread | null; liveBearCallSpread?: LiveCreditSpread | null;
   liveCallDiagonal?: LiveDiagonalSpread | null; livePutDiagonal?: LiveDiagonalSpread | null;
   liveIronCondor?: LiveIronCondor | null; liveLongCall?: LiveLongOption | null; liveLongPut?: LiveLongOption | null;
   recentHeadlines?: HeadlineItem[];
+  tradeFilters?: TradeFilters | null;
   techData?: {
     rsi14: number | null; macdLine: number | null; macdSignal: number | null; macdHist: number | null;
     ema20: number | null; ema50: number | null; ema200: number | null;
@@ -150,6 +166,23 @@ function pickAltTrade(meta: MetaData, bias: "Bullish" | "Bearish" | "Neutral" | 
   return null;
 }
 
+function normalizeMetaData(raw: MetaData | null | undefined): MetaData | null {
+  if (!raw) return null;
+  return {
+    ...raw,
+    selectedExpiration: raw.selectedExpiration ?? raw.nearExpiration ?? null,
+    nearExpiration: raw.nearExpiration ?? raw.selectedExpiration ?? undefined,
+    liveBullPut: raw.liveBullPut ?? raw.liveBullPutSpread ?? null,
+    liveBearCall: raw.liveBearCall ?? raw.liveBearCallSpread ?? null,
+    liveBullPutSpread: raw.liveBullPutSpread ?? raw.liveBullPut ?? null,
+    liveBearCallSpread: raw.liveBearCallSpread ?? raw.liveBearCall ?? null,
+  };
+}
+
+function getQualityColor(label?: "Trader-Grade Setup" | "Low Return Setup"): string {
+  return label === "Trader-Grade Setup" ? "#22c55e" : "#f59e0b";
+}
+
 function getPopColor(pop: number): string {
   if (pop >= 70) return "#22c55e";
   if (pop >= 50) return "#f59e0b";
@@ -158,10 +191,11 @@ function getPopColor(pop: number): string {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function TradeSummaryCard({ bias, confidence, strategy, target, invalidate }: {
+function TradeSummaryCard({ bias, confidence, strategy, target, invalidate, onViewAnalysis }: {
   bias: "Bullish" | "Bearish" | "Neutral" | null;
   confidence: string | null; strategy: string | null;
   target: string | null; invalidate: string | null;
+  onViewAnalysis?: () => void;
 }) {
   if (!bias && !strategy) return null;
   const biasColor = bias === "Bullish" ? "#22c55e" : bias === "Bearish" ? "#ef4444" : "#f59e0b";
@@ -171,6 +205,11 @@ function TradeSummaryCard({ bias, confidence, strategy, target, invalidate }: {
       <div style={styles.summaryHeader}>
         <span style={styles.summaryIcon}>🎯</span>
         <span style={styles.summaryTitle}>PREFERRED TRADE SUMMARY</span>
+        {onViewAnalysis && (
+          <button onClick={onViewAnalysis} style={styles.summaryActionButton}>
+            {strategy === "No Trade" ? "View analysis" : "Why this trade?"}
+          </button>
+        )}
       </div>
       <div style={styles.summaryGrid}>
         {bias && <div style={styles.summaryItem}><span style={styles.summaryLabel}>Bias</span><span style={{ ...styles.summaryValue, color: biasColor }}>{biasIcon} {bias}</span></div>}
@@ -229,6 +268,13 @@ function DebitCard({ spread, currentPrice, onTutorial }: { spread: LiveDebitSpre
         <div><strong>{shortLabel} Bid/Ask</strong><br />{spread.shortBid.toFixed(2)} / {spread.shortAsk.toFixed(2)}</div>
       </div>
       <StatBar pop={spread.pop} pop50={spread.pop50} riskReward={spread.riskReward} />
+      {(spread.returnOnRisk != null || spread.qualityLabel) && (
+        <div style={styles.setupQualityBox}>
+          {spread.returnOnRisk != null && <div><strong>Return on Risk:</strong> {(spread.returnOnRisk * 100).toFixed(1)}%</div>}
+          {spread.maxLossToProfitRatio != null && <div><strong>Max Loss / Profit:</strong> {spread.maxLossToProfitRatio.toFixed(2)}x</div>}
+          {spread.qualityLabel && <div><strong>Setup Quality:</strong> <span style={{ color: getQualityColor(spread.qualityLabel), fontWeight: 700 }}>{spread.qualityLabel}</span></div>}
+        </div>
+      )}
       <div style={styles.brokerLabel}>Recommended brokerage for this setup</div>
       <a href="https://tastytrade.com/welcome/?referralCode=WZQ7CK6HGE" target="_blank" rel="noopener noreferrer" style={styles.affiliateBar}>
         <span style={styles.affiliateBarLeft}><span style={{ fontSize: "18px", lineHeight: 1, flexShrink: 0 }}>🍒</span><span><strong>Trade on tastytrade</strong> — built for options traders &amp; multi-leg setups</span></span>
@@ -262,6 +308,13 @@ function CreditCard({ spread, currentPrice, onTutorial }: { spread: LiveCreditSp
         <div><strong>{longLabel} Bid/Ask</strong><br />{spread.longBid.toFixed(2)} / {spread.longAsk.toFixed(2)}</div>
       </div>
       <StatBar pop={spread.pop} pop50={spread.pop50} riskReward={spread.riskReward} />
+      {(spread.returnOnRisk != null || spread.qualityLabel) && (
+        <div style={styles.setupQualityBox}>
+          {spread.returnOnRisk != null && <div><strong>Return on Risk:</strong> {(spread.returnOnRisk * 100).toFixed(1)}%</div>}
+          {spread.maxLossToProfitRatio != null && <div><strong>Max Loss / Profit:</strong> {spread.maxLossToProfitRatio.toFixed(2)}x</div>}
+          {spread.qualityLabel && <div><strong>Setup Quality:</strong> <span style={{ color: getQualityColor(spread.qualityLabel), fontWeight: 700 }}>{spread.qualityLabel}</span></div>}
+        </div>
+      )}
       <div style={styles.brokerLabel}>Recommended brokerage for this setup</div>
       <a href="https://tastytrade.com/welcome/?referralCode=WZQ7CK6HGE" target="_blank" rel="noopener noreferrer" style={styles.affiliateBar}>
         <span style={styles.affiliateBarLeft}><span style={{ fontSize: "18px", lineHeight: 1, flexShrink: 0 }}>🍒</span><span><strong>Trade on tastytrade</strong> — built for options traders &amp; multi-leg setups</span></span>
@@ -321,6 +374,13 @@ function IronCondorCard({ spread, currentPrice, onTutorial }: { spread: LiveIron
         <div><strong>Stop Loss (Underlying)</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${lowerStop} / ${upperStop}</span></div>
       </div>
       <StatBar pop={spread.pop} pop50={spread.pop50} riskReward={spread.riskReward} />
+      {(spread.returnOnRisk != null || spread.qualityLabel) && (
+        <div style={styles.setupQualityBox}>
+          {spread.returnOnRisk != null && <div><strong>Return on Risk:</strong> {(spread.returnOnRisk * 100).toFixed(1)}%</div>}
+          {spread.maxLossToProfitRatio != null && <div><strong>Max Loss / Profit:</strong> {spread.maxLossToProfitRatio.toFixed(2)}x</div>}
+          {spread.qualityLabel && <div><strong>Setup Quality:</strong> <span style={{ color: getQualityColor(spread.qualityLabel), fontWeight: 700 }}>{spread.qualityLabel}</span></div>}
+        </div>
+      )}
       <div style={styles.brokerLabel}>Recommended brokerage for this setup</div>
       <a href="https://tastytrade.com/welcome/?referralCode=WZQ7CK6HGE" target="_blank" rel="noopener noreferrer" style={styles.affiliateBar}>
         <span style={styles.affiliateBarLeft}><span style={{ fontSize: "18px", lineHeight: 1, flexShrink: 0 }}>🍒</span><span><strong>Trade on tastytrade</strong> — built for options traders &amp; multi-leg setups</span></span>
@@ -433,6 +493,21 @@ function AltTradeCard({ option, parsedLine, currentPrice }: { option: LiveLongOp
         <div><strong>Estimated Mid</strong><br />${option.mid.toFixed(2)}</div>
         <div><strong>Max Risk</strong><br />${option.maxRisk.toFixed(2)}</div>
         <div><strong>Stop Loss (Underlying)</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${stopLoss}</span></div>
+      </div>
+    </div>
+  );
+}
+
+
+function TradeFiltersCard({ filters }: { filters: TradeFilters }) {
+  return (
+    <div style={styles.filterCard}>
+      <h2 style={styles.cardTitle}>🧪 Trade Filters</h2>
+      <div style={styles.filterGrid}>
+        <div><strong>Min RoR</strong><br />{(filters.minReturnOnRisk * 100).toFixed(0)}%</div>
+        <div><strong>Ideal RoR</strong><br />{(filters.idealReturnOnRisk * 100).toFixed(0)}%</div>
+        <div><strong>Max Loss/Profit</strong><br />{filters.maxLossToProfitRatio}x</div>
+        <div><strong>Short Delta Band</strong><br />{filters.preferredShortDeltaMin.toFixed(2)} - {filters.preferredShortDeltaMax.toFixed(2)}</div>
       </div>
     </div>
   );
@@ -617,7 +692,7 @@ export default function Home() {
       }
       setShowPaywall(false);
       setPaywallAttemptedAgain(false);
-      setResult(data.result ?? ""); setMeta(data.meta ?? null);
+      setResult(data.result ?? ""); setMeta(normalizeMetaData(data.meta ?? null));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally { setLoading(false); }
@@ -862,12 +937,15 @@ export default function Home() {
             {meta.resolvedFromName && meta.resolvedDisplayName && <div><strong>Company:</strong> {meta.resolvedDisplayName}</div>}
             <div><strong>Price:</strong> ${meta.currentPrice}</div>
             <div><strong>Next Earnings:</strong> {meta.nextEarnings}</div>
+            {meta.selectedExpiration && <div><strong>Selected Expiration:</strong> {meta.selectedExpiration}</div>}
             {bias && <div><strong>AI Bias:</strong> <span style={{ color: bias === "Bullish" ? "#22c55e" : bias === "Bearish" ? "#ef4444" : "#f59e0b" }}>{bias}</span></div>}
             {preferredStrategy && <div><strong>Strategy:</strong> {preferredStrategy}</div>}
           </div>
         )}
 
-        {result && <TradeSummaryCard bias={bias} confidence={confidenceScore} strategy={preferredStrategy} target={tradeTarget} invalidate={tradeInvalidate} />}
+        {result && <TradeSummaryCard bias={bias} confidence={confidenceScore} strategy={preferredStrategy} target={tradeTarget} invalidate={tradeInvalidate} onViewAnalysis={() => setShowFullAnalysis(v => !v)} />}
+
+        {meta?.tradeFilters && <TradeFiltersCard filters={meta.tradeFilters} />}
 
         {meta?.techData && <TechCard tech={meta.techData} />}
 
@@ -1027,6 +1105,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   summaryHeader: { display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" },
   summaryIcon: { fontSize: "1rem" },
   summaryTitle: { fontSize: "0.72rem", fontWeight: 800, color: "#64748b", letterSpacing: "0.12em", textTransform: "uppercase" as const },
+  summaryActionButton: { marginLeft: "auto", padding: "6px 10px", borderRadius: "8px", border: "1px solid #334155", background: "#0f172a", color: "#cbd5e1", cursor: "pointer", fontSize: "0.78rem", fontWeight: 700 },
   summaryGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" },
   summaryItem: { display: "flex", flexDirection: "column" as const, gap: "3px" },
   summaryLabel: { fontSize: "0.68rem", color: "#475569", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.08em" },
@@ -1052,6 +1131,8 @@ const styles: { [key: string]: React.CSSProperties } = {
   paywallCard: { background: "#1f2937", border: "1px solid #475569", borderRadius: "14px", padding: "18px", marginBottom: "16px", display: "grid", gap: "12px", boxShadow: "0 10px 30px rgba(0,0,0,0.18)" },
   paywallActions: { display: "flex", gap: "12px", flexWrap: "wrap" },
   metaCard: { background: "#1e293b", border: "1px solid #334155", borderRadius: "14px", padding: "16px", marginBottom: "16px", display: "flex", gap: "20px", flexWrap: "wrap" },
+  filterCard: { background: "#1e293b", border: "1px solid #334155", borderRadius: "14px", padding: "16px", marginBottom: "16px" },
+  filterGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "10px", color: "#cbd5e1", fontSize: "0.9rem" },
   techCard: { background: "#1e293b", border: "1px solid #334155", borderRadius: "14px", padding: "16px", marginBottom: "16px" },
   techGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: "10px", marginTop: "12px" },
   techItem: { display: "flex", flexDirection: "column" as const, gap: "2px", background: "#0f172a", borderRadius: "8px", padding: "10px" },
@@ -1082,6 +1163,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   tradeGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "14px", marginBottom: "16px" },
   quoteRow: { display: "flex", gap: "24px", flexWrap: "wrap", paddingTop: "12px", borderTop: "1px solid #334155" },
   statBar: { display: "flex", gap: "0", marginTop: "14px", borderRadius: "10px", overflow: "hidden", border: "1px solid #334155" },
+  setupQualityBox: { marginTop: "12px", padding: "10px 12px", borderRadius: "10px", background: "#0f172a", border: "1px solid #1e293b", color: "#cbd5e1", fontSize: "0.84rem", display: "flex", flexDirection: "column" as const, gap: "6px" },
   statItem: { flex: 1, display: "flex", flexDirection: "column" as const, alignItems: "center", padding: "10px 8px", background: "#0f172a", borderRight: "1px solid #334155", gap: "4px", textAlign: "center" as const },
   statLabel: { fontSize: "0.7rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.08em" },
   statLabelSub: { fontSize: "0.65rem", color: "#475569", fontWeight: 400, textTransform: "none" as const, letterSpacing: "0", display: "block", marginTop: "1px" },
