@@ -23,9 +23,6 @@ type LiveDebitSpread = {
   longMid: number; shortMid: number; netDebit: number; width: number;
   maxProfit: number; maxLoss: number; breakeven: number;
   pop: number | null; pop50: number | null; riskReward: number;
-  returnOnRisk?: number; maxLossToProfitRatio?: number;
-  qualityLabel?: "Trader-Grade Setup" | "Low Return Setup";
-  passesTradeFilter?: boolean;
 };
 
 type LiveIronCondor = {
@@ -239,53 +236,108 @@ function StatBar({ pop, pop50, riskReward }: { pop: number | null; pop50: number
   );
 }
 
-function AdvancedCardHeader({ onTutorial }: { onTutorial: () => void }) {
+
+function CollapsibleTradeSection({
+  icon,
+  title,
+  subtitle,
+  badge,
+  accent,
+  badgeStyle,
+  children,
+  defaultCollapsed = true,
+}: {
+  icon: string;
+  title: string;
+  subtitle: string;
+  badge?: string;
+  accent: string;
+  badgeStyle?: React.CSSProperties;
+  children: React.ReactNode;
+  defaultCollapsed?: boolean;
+}) {
+  const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
+
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-      <h2 style={{ margin: 0, fontSize: "1.2rem", color: "#ffffff" }}>⚡ Advanced Trade Idea</h2>
+    <div style={{ ...styles.collapsibleShell, borderColor: `${accent}55`, boxShadow: `0 10px 30px ${accent}18` }}>
+      <button
+        type="button"
+        onClick={() => setIsCollapsed((v) => !v)}
+        style={{
+          ...styles.collapsibleHeaderButton,
+          background: isCollapsed ? `${accent}14` : `${accent}0d`,
+        }}
+      >
+        <div style={styles.collapsibleHeaderLeft}>
+          <div style={{ ...styles.collapsibleIconWrap, boxShadow: `0 0 0 1px ${accent}55 inset` }}>
+            <span style={styles.collapsibleIcon}>{icon}</span>
+          </div>
+          <div style={styles.collapsibleTitleWrap}>
+            <div style={styles.collapsibleTitleRow}>
+              <span style={styles.collapsibleTitle}>{title}</span>
+              {badge && <span style={{ ...styles.collapsibleBadge, ...(badgeStyle ?? {}) }}>{badge}</span>}
+            </div>
+            <span style={styles.collapsibleSubtitle}>{isCollapsed ? "Tap to expand" : subtitle}</span>
+          </div>
+        </div>
+        <span style={styles.collapsibleChevron}>{isCollapsed ? "▾" : "▴"}</span>
+      </button>
+      {!isCollapsed && <div style={styles.collapsibleBody}>{children}</div>}
+    </div>
+  );
+}
+
+function AdvancedCardActions({ onTutorial }: { onTutorial: () => void }) {
+  return (
+    <div style={styles.advancedCardActions}>
       <button onClick={onTutorial} style={styles.tutorialBtn}>📖 How it works</button>
     </div>
   );
 }
+
 
 function DebitCard({ spread, currentPrice, onTutorial }: { spread: LiveDebitSpread; currentPrice: string; onTutorial: () => void }) {
   const longLabel = spread.strategyType === "Call Debit Spread" ? "Long Call" : "Long Put";
   const shortLabel = spread.strategyType === "Call Debit Spread" ? "Short Call" : "Short Put";
   const price = parseFloat(currentPrice);
   const stopLoss = spread.strategyType === "Call Debit Spread" ? (price * 0.95).toFixed(2) : (price * 1.05).toFixed(2);
+
   return (
-    <div style={styles.tradeCard}>
-      <AdvancedCardHeader onTutorial={onTutorial} />
-      <div style={styles.tradeGrid}>
-        <div><strong>Strategy</strong><br />{spread.strategyType}</div>
-        <div><strong>Expiration</strong><br />{spread.expiration}</div>
-        <div><strong>{spread.strategyType === "Call Debit Spread" ? "Call Side" : "Put Side"}</strong><br />{spread.longStrike} / {spread.shortStrike}</div>
-        <div><strong>Net Debit</strong><br />${spread.netDebit.toFixed(2)}</div>
-        <div><strong>Breakeven</strong><br />${spread.breakeven.toFixed(2)}</div>
-        <div><strong>Max Profit</strong><br />${spread.maxProfit.toFixed(2)}</div>
-        <div><strong>Max Loss</strong><br />${spread.maxLoss.toFixed(2)}</div>
-        <div><strong>Stop Loss (Underlying)</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${stopLoss}</span></div>
-      </div>
-      <div style={styles.quoteRow}>
-        <div><strong>{longLabel} Bid/Ask</strong><br />{spread.longBid.toFixed(2)} / {spread.longAsk.toFixed(2)}</div>
-        <div><strong>{shortLabel} Bid/Ask</strong><br />{spread.shortBid.toFixed(2)} / {spread.shortAsk.toFixed(2)}</div>
-      </div>
-      <StatBar pop={spread.pop} pop50={spread.pop50} riskReward={spread.riskReward} />
-      {(spread.returnOnRisk != null || spread.qualityLabel) && (
-        <div style={styles.setupQualityBox}>
-          {spread.returnOnRisk != null && <div><strong>Return on Risk:</strong> {(spread.returnOnRisk * 100).toFixed(1)}%</div>}
-          {spread.maxLossToProfitRatio != null && <div><strong>Max Loss / Profit:</strong> {spread.maxLossToProfitRatio.toFixed(2)}x</div>}
-          {spread.qualityLabel && <div><strong>Setup Quality:</strong> <span style={{ color: getQualityColor(spread.qualityLabel), fontWeight: 700 }}>{spread.qualityLabel}</span></div>}
+    <CollapsibleTradeSection
+      icon="⚡"
+      title="Advanced Trade Idea"
+      subtitle="Expanded multi-leg setup with live options data."
+      badge={spread.strategyType}
+      accent="#60a5fa"
+      badgeStyle={{ background: "#1e3a5f", color: "#93c5fd" }}
+    >
+      <div style={styles.tradeCard}>
+        <AdvancedCardActions onTutorial={onTutorial} />
+        <div style={styles.tradeGrid}>
+          <div><strong>Strategy</strong><br />{spread.strategyType}</div>
+          <div><strong>Expiration</strong><br />{spread.expiration}</div>
+          <div><strong>{spread.strategyType === "Call Debit Spread" ? "Call Side" : "Put Side"}</strong><br />{spread.longStrike} / {spread.shortStrike}</div>
+          <div><strong>Net Debit</strong><br />${spread.netDebit.toFixed(2)}</div>
+          <div><strong>Breakeven</strong><br />${spread.breakeven.toFixed(2)}</div>
+          <div><strong>Max Profit</strong><br />${spread.maxProfit.toFixed(2)}</div>
+          <div><strong>Max Loss</strong><br />${spread.maxLoss.toFixed(2)}</div>
+          <div><strong>Stop Loss (Underlying)</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${stopLoss}</span></div>
         </div>
-      )}
-      <div style={styles.brokerLabel}>Recommended brokerage for this setup</div>
-      <a href="https://tastytrade.com/welcome/?referralCode=WZQ7CK6HGE" target="_blank" rel="noopener noreferrer" style={styles.affiliateBar}>
-        <span style={styles.affiliateBarLeft}><span style={{ fontSize: "18px", lineHeight: 1, flexShrink: 0 }}>🍒</span><span><strong>Trade on tastytrade</strong> — built for options traders &amp; multi-leg setups</span></span>
-        <span style={styles.affiliateCta}>Open Account →</span>
-      </a>
-    </div>
+        <div style={styles.quoteRow}>
+          <div><strong>{longLabel} Bid/Ask</strong><br />{spread.longBid.toFixed(2)} / {spread.longAsk.toFixed(2)}</div>
+          <div><strong>{shortLabel} Bid/Ask</strong><br />{spread.shortBid.toFixed(2)} / {spread.shortAsk.toFixed(2)}</div>
+        </div>
+        <StatBar pop={spread.pop} pop50={spread.pop50} riskReward={spread.riskReward} />
+        <div style={styles.brokerLabel}>Recommended brokerage for this setup</div>
+        <a href="https://tastytrade.com/welcome/?referralCode=WZQ7CK6HGE" target="_blank" rel="noopener noreferrer" style={styles.affiliateBar}>
+          <span style={styles.affiliateBarLeft}><span style={{ fontSize: "18px", lineHeight: 1, flexShrink: 0 }}>🍒</span><span><strong>Trade on tastytrade</strong> — built for options traders &amp; multi-leg setups</span></span>
+          <span style={styles.affiliateCta}>Open Account →</span>
+        </a>
+      </div>
+    </CollapsibleTradeSection>
   );
 }
+
 
 function CreditCard({ spread, currentPrice, onTutorial }: { spread: LiveCreditSpread; currentPrice: string; onTutorial: () => void }) {
   const shortLabel = spread.strategyType === "Bull Put Spread" ? "Short Put" : "Short Call";
@@ -293,103 +345,135 @@ function CreditCard({ spread, currentPrice, onTutorial }: { spread: LiveCreditSp
   const sideLabel = spread.strategyType === "Bull Put Spread" ? "Put Side" : "Call Side";
   const price = parseFloat(currentPrice);
   const stopLoss = spread.strategyType === "Bull Put Spread" ? (price * 0.95).toFixed(2) : (price * 1.05).toFixed(2);
+
   return (
-    <div style={styles.tradeCard}>
-      <AdvancedCardHeader onTutorial={onTutorial} />
-      <div style={styles.tradeGrid}>
-        <div><strong>Strategy</strong><br />{spread.strategyType}</div>
-        <div><strong>Expiration</strong><br />{spread.expiration}</div>
-        <div><strong>{sideLabel}</strong><br />{spread.shortStrike} / {spread.longStrike}</div>
-        <div><strong>Total Credit</strong><br />${spread.netCredit.toFixed(2)}</div>
-        <div><strong>Breakeven</strong><br />${spread.breakeven.toFixed(2)}</div>
-        <div><strong>Max Profit</strong><br />${spread.maxProfit.toFixed(2)}</div>
-        <div><strong>Max Loss</strong><br />${spread.maxLoss.toFixed(2)}</div>
-        <div><strong>Stop Loss (Underlying)</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${stopLoss}</span></div>
-      </div>
-      <div style={styles.quoteRow}>
-        <div><strong>{shortLabel} Bid/Ask</strong><br />{spread.shortBid.toFixed(2)} / {spread.shortAsk.toFixed(2)}</div>
-        <div><strong>{longLabel} Bid/Ask</strong><br />{spread.longBid.toFixed(2)} / {spread.longAsk.toFixed(2)}</div>
-      </div>
-      <StatBar pop={spread.pop} pop50={spread.pop50} riskReward={spread.riskReward} />
-      {(spread.returnOnRisk != null || spread.qualityLabel) && (
-        <div style={styles.setupQualityBox}>
-          {spread.returnOnRisk != null && <div><strong>Return on Risk:</strong> {(spread.returnOnRisk * 100).toFixed(1)}%</div>}
-          {spread.maxLossToProfitRatio != null && <div><strong>Max Loss / Profit:</strong> {spread.maxLossToProfitRatio.toFixed(2)}x</div>}
-          {spread.qualityLabel && <div><strong>Setup Quality:</strong> <span style={{ color: getQualityColor(spread.qualityLabel), fontWeight: 700 }}>{spread.qualityLabel}</span></div>}
+    <CollapsibleTradeSection
+      icon="⚡"
+      title="Advanced Trade Idea"
+      subtitle="Expanded multi-leg setup with live options data."
+      badge={spread.strategyType}
+      accent="#60a5fa"
+      badgeStyle={{ background: "#1e3a5f", color: "#93c5fd" }}
+    >
+      <div style={styles.tradeCard}>
+        <AdvancedCardActions onTutorial={onTutorial} />
+        <div style={styles.tradeGrid}>
+          <div><strong>Strategy</strong><br />{spread.strategyType}</div>
+          <div><strong>Expiration</strong><br />{spread.expiration}</div>
+          <div><strong>{sideLabel}</strong><br />{spread.shortStrike} / {spread.longStrike}</div>
+          <div><strong>Total Credit</strong><br />${spread.netCredit.toFixed(2)}</div>
+          <div><strong>Breakeven</strong><br />${spread.breakeven.toFixed(2)}</div>
+          <div><strong>Max Profit</strong><br />${spread.maxProfit.toFixed(2)}</div>
+          <div><strong>Max Loss</strong><br />${spread.maxLoss.toFixed(2)}</div>
+          <div><strong>Stop Loss (Underlying)</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${stopLoss}</span></div>
         </div>
-      )}
-      <div style={styles.brokerLabel}>Recommended brokerage for this setup</div>
-      <a href="https://tastytrade.com/welcome/?referralCode=WZQ7CK6HGE" target="_blank" rel="noopener noreferrer" style={styles.affiliateBar}>
-        <span style={styles.affiliateBarLeft}><span style={{ fontSize: "18px", lineHeight: 1, flexShrink: 0 }}>🍒</span><span><strong>Trade on tastytrade</strong> — built for options traders &amp; multi-leg setups</span></span>
-        <span style={styles.affiliateCta}>Open Account →</span>
-      </a>
-    </div>
+        <div style={styles.quoteRow}>
+          <div><strong>{shortLabel} Bid/Ask</strong><br />{spread.shortBid.toFixed(2)} / {spread.shortAsk.toFixed(2)}</div>
+          <div><strong>{longLabel} Bid/Ask</strong><br />{spread.longBid.toFixed(2)} / {spread.longAsk.toFixed(2)}</div>
+        </div>
+        <StatBar pop={spread.pop} pop50={spread.pop50} riskReward={spread.riskReward} />
+        {spread.qualityLabel && (
+          <div style={styles.setupQualityBox}>
+            <div><strong>Setup Quality:</strong> <span style={{ color: getQualityColor(spread.qualityLabel) }}>{spread.qualityLabel}</span></div>
+            {typeof spread.returnOnRisk === "number" && <div><strong>Return on Risk:</strong> {(spread.returnOnRisk * 100).toFixed(1)}%</div>}
+            {typeof spread.maxLossToProfitRatio === "number" && <div><strong>Max Loss to Profit:</strong> {spread.maxLossToProfitRatio.toFixed(2)}:1</div>}
+          </div>
+        )}
+        <div style={styles.brokerLabel}>Recommended brokerage for this setup</div>
+        <a href="https://tastytrade.com/welcome/?referralCode=WZQ7CK6HGE" target="_blank" rel="noopener noreferrer" style={styles.affiliateBar}>
+          <span style={styles.affiliateBarLeft}><span style={{ fontSize: "18px", lineHeight: 1, flexShrink: 0 }}>🍒</span><span><strong>Trade on tastytrade</strong> — built for options traders &amp; multi-leg setups</span></span>
+          <span style={styles.affiliateCta}>Open Account →</span>
+        </a>
+      </div>
+    </CollapsibleTradeSection>
   );
 }
+
 
 function DiagonalCard({ spread, currentPrice, onTutorial }: { spread: LiveDiagonalSpread; currentPrice: string; onTutorial: () => void }) {
   const longLabel = spread.strategyType === "Call Diagonal" ? "Far Long Call" : "Far Long Put";
   const shortLabel = spread.strategyType === "Call Diagonal" ? "Near Short Call" : "Near Short Put";
   const price = parseFloat(currentPrice);
   const stopLoss = spread.strategyType === "Call Diagonal" ? (price * 0.95).toFixed(2) : (price * 1.05).toFixed(2);
+
   return (
-    <div style={styles.tradeCard}>
-      <AdvancedCardHeader onTutorial={onTutorial} />
-      <div style={styles.tradeGrid}>
-        <div><strong>Strategy</strong><br />{spread.strategyType}</div>
-        <div><strong>Near Exp</strong><br />{spread.nearExpiration}</div>
-        <div><strong>Far Exp</strong><br />{spread.farExpiration}</div>
-        <div><strong>{spread.strategyType === "Call Diagonal" ? "Call Side" : "Put Side"}</strong><br />{spread.longStrike} / {spread.shortStrike}</div>
-        <div><strong>Net Debit</strong><br />${spread.netDebit.toFixed(2)}</div>
-        <div><strong>Note</strong><br />Path-dependent</div>
-        <div><strong>Stop Loss (Underlying)</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${stopLoss}</span></div>
+    <CollapsibleTradeSection
+      icon="⚡"
+      title="Advanced Trade Idea"
+      subtitle="Expanded multi-leg setup with live options data."
+      badge={spread.strategyType}
+      accent="#60a5fa"
+      badgeStyle={{ background: "#1e3a5f", color: "#93c5fd" }}
+    >
+      <div style={styles.tradeCard}>
+        <AdvancedCardActions onTutorial={onTutorial} />
+        <div style={styles.tradeGrid}>
+          <div><strong>Strategy</strong><br />{spread.strategyType}</div>
+          <div><strong>Near Exp</strong><br />{spread.nearExpiration}</div>
+          <div><strong>Far Exp</strong><br />{spread.farExpiration}</div>
+          <div><strong>{spread.strategyType === "Call Diagonal" ? "Call Side" : "Put Side"}</strong><br />{spread.longStrike} / {spread.shortStrike}</div>
+          <div><strong>Net Debit</strong><br />${spread.netDebit.toFixed(2)}</div>
+          <div><strong>Note</strong><br />Path-dependent</div>
+          <div><strong>Stop Loss (Underlying)</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${stopLoss}</span></div>
+        </div>
+        <div style={styles.quoteRow}>
+          <div><strong>{longLabel} Bid/Ask</strong><br />{spread.longBid.toFixed(2)} / {spread.longAsk.toFixed(2)}</div>
+          <div><strong>{shortLabel} Bid/Ask</strong><br />{spread.shortBid.toFixed(2)} / {spread.shortAsk.toFixed(2)}</div>
+        </div>
+        <div style={styles.brokerLabel}>Recommended brokerage for this setup</div>
+        <a href="https://tastytrade.com/welcome/?referralCode=WZQ7CK6HGE" target="_blank" rel="noopener noreferrer" style={styles.affiliateBar}>
+          <span style={styles.affiliateBarLeft}><span style={{ fontSize: "18px", lineHeight: 1, flexShrink: 0 }}>🍒</span><span><strong>Trade on tastytrade</strong> — built for options traders &amp; multi-leg setups</span></span>
+          <span style={styles.affiliateCta}>Open Account →</span>
+        </a>
       </div>
-      <div style={styles.quoteRow}>
-        <div><strong>{longLabel} Bid/Ask</strong><br />{spread.longBid.toFixed(2)} / {spread.longAsk.toFixed(2)}</div>
-        <div><strong>{shortLabel} Bid/Ask</strong><br />{spread.shortBid.toFixed(2)} / {spread.shortAsk.toFixed(2)}</div>
-      </div>
-      <div style={styles.brokerLabel}>Recommended brokerage for this setup</div>
-      <a href="https://tastytrade.com/welcome/?referralCode=WZQ7CK6HGE" target="_blank" rel="noopener noreferrer" style={styles.affiliateBar}>
-        <span style={styles.affiliateBarLeft}><span style={{ fontSize: "18px", lineHeight: 1, flexShrink: 0 }}>🍒</span><span><strong>Trade on tastytrade</strong> — built for options traders &amp; multi-leg setups</span></span>
-        <span style={styles.affiliateCta}>Open Account →</span>
-      </a>
-    </div>
+    </CollapsibleTradeSection>
   );
 }
+
 
 function IronCondorCard({ spread, currentPrice, onTutorial }: { spread: LiveIronCondor; currentPrice: string; onTutorial: () => void }) {
   const price = parseFloat(currentPrice);
   const lowerStop = (price * 0.95).toFixed(2);
   const upperStop = (price * 1.05).toFixed(2);
+
   return (
-    <div style={styles.tradeCard}>
-      <AdvancedCardHeader onTutorial={onTutorial} />
-      <div style={styles.tradeGrid}>
-        <div><strong>Strategy</strong><br />{spread.strategyType}</div>
-        <div><strong>Expiration</strong><br />{spread.expiration}</div>
-        <div><strong>Put Side</strong><br />{spread.putShortStrike} / {spread.putLongStrike}</div>
-        <div><strong>Call Side</strong><br />{spread.callShortStrike} / {spread.callLongStrike}</div>
-        <div><strong>Total Credit</strong><br />${spread.totalCredit.toFixed(2)}</div>
-        <div><strong>Lower B/E</strong><br />${spread.lowerBreakeven.toFixed(2)}</div>
-        <div><strong>Upper B/E</strong><br />${spread.upperBreakeven.toFixed(2)}</div>
-        <div><strong>Max Profit</strong><br />${spread.maxProfit.toFixed(2)}</div>
-        <div><strong>Max Loss</strong><br />${spread.maxLoss.toFixed(2)}</div>
-        <div><strong>Stop Loss (Underlying)</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${lowerStop} / ${upperStop}</span></div>
-      </div>
-      <StatBar pop={spread.pop} pop50={spread.pop50} riskReward={spread.riskReward} />
-      {(spread.returnOnRisk != null || spread.qualityLabel) && (
-        <div style={styles.setupQualityBox}>
-          {spread.returnOnRisk != null && <div><strong>Return on Risk:</strong> {(spread.returnOnRisk * 100).toFixed(1)}%</div>}
-          {spread.maxLossToProfitRatio != null && <div><strong>Max Loss / Profit:</strong> {spread.maxLossToProfitRatio.toFixed(2)}x</div>}
-          {spread.qualityLabel && <div><strong>Setup Quality:</strong> <span style={{ color: getQualityColor(spread.qualityLabel), fontWeight: 700 }}>{spread.qualityLabel}</span></div>}
+    <CollapsibleTradeSection
+      icon="⚡"
+      title="Advanced Trade Idea"
+      subtitle="Expanded multi-leg setup with live options data."
+      badge={spread.strategyType}
+      accent="#60a5fa"
+      badgeStyle={{ background: "#1e3a5f", color: "#93c5fd" }}
+    >
+      <div style={styles.tradeCard}>
+        <AdvancedCardActions onTutorial={onTutorial} />
+        <div style={styles.tradeGrid}>
+          <div><strong>Strategy</strong><br />{spread.strategyType}</div>
+          <div><strong>Expiration</strong><br />{spread.expiration}</div>
+          <div><strong>Put Side</strong><br />{spread.putShortStrike} / {spread.putLongStrike}</div>
+          <div><strong>Call Side</strong><br />{spread.callShortStrike} / {spread.callLongStrike}</div>
+          <div><strong>Total Credit</strong><br />${spread.totalCredit.toFixed(2)}</div>
+          <div><strong>Lower B/E</strong><br />${spread.lowerBreakeven.toFixed(2)}</div>
+          <div><strong>Upper B/E</strong><br />${spread.upperBreakeven.toFixed(2)}</div>
+          <div><strong>Max Profit</strong><br />${spread.maxProfit.toFixed(2)}</div>
+          <div><strong>Max Loss</strong><br />${spread.maxLoss.toFixed(2)}</div>
+          <div><strong>Stop Loss (Underlying)</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${lowerStop} / ${upperStop}</span></div>
         </div>
-      )}
-      <div style={styles.brokerLabel}>Recommended brokerage for this setup</div>
-      <a href="https://tastytrade.com/welcome/?referralCode=WZQ7CK6HGE" target="_blank" rel="noopener noreferrer" style={styles.affiliateBar}>
-        <span style={styles.affiliateBarLeft}><span style={{ fontSize: "18px", lineHeight: 1, flexShrink: 0 }}>🍒</span><span><strong>Trade on tastytrade</strong> — built for options traders &amp; multi-leg setups</span></span>
-        <span style={styles.affiliateCta}>Open Account →</span>
-      </a>
-    </div>
+        <StatBar pop={spread.pop} pop50={spread.pop50} riskReward={spread.riskReward} />
+        {spread.qualityLabel && (
+          <div style={styles.setupQualityBox}>
+            <div><strong>Setup Quality:</strong> <span style={{ color: getQualityColor(spread.qualityLabel) }}>{spread.qualityLabel}</span></div>
+            {typeof spread.returnOnRisk === "number" && <div><strong>Return on Risk:</strong> {(spread.returnOnRisk * 100).toFixed(1)}%</div>}
+            {typeof spread.maxLossToProfitRatio === "number" && <div><strong>Max Loss to Profit:</strong> {spread.maxLossToProfitRatio.toFixed(2)}:1</div>}
+          </div>
+        )}
+        <div style={styles.brokerLabel}>Recommended brokerage for this setup</div>
+        <a href="https://tastytrade.com/welcome/?referralCode=WZQ7CK6HGE" target="_blank" rel="noopener noreferrer" style={styles.affiliateBar}>
+          <span style={styles.affiliateBarLeft}><span style={{ fontSize: "18px", lineHeight: 1, flexShrink: 0 }}>🍒</span><span><strong>Trade on tastytrade</strong> — built for options traders &amp; multi-leg setups</span></span>
+          <span style={styles.affiliateCta}>Open Account →</span>
+        </a>
+      </div>
+    </CollapsibleTradeSection>
   );
 }
 
@@ -453,72 +537,70 @@ function TechCard({ tech }: { tech: NonNullable<MetaData["techData"]> }) {
   );
 }
 
+
 function BeginnerCard({ bias, symbol, currentPrice }: { bias: "Bullish" | "Bearish"; symbol: string; currentPrice: string }) {
   const isBullish = bias === "Bullish";
   const price = parseFloat(currentPrice);
   const stopLoss = isBullish ? (price * 0.95).toFixed(2) : (price * 1.05).toFixed(2);
+
   return (
-    <div style={styles.beginnerCard}>
-      <div style={styles.beginnerHeader}>
-        <h2 style={styles.cardTitle}>🟢 Beginner Trade Idea</h2>
-        <span style={styles.beginnerBadge}>Shares Only</span>
+    <CollapsibleTradeSection
+      icon="🟢"
+      title="Beginner Trade Idea"
+      subtitle="Simple directional play with shares only."
+      badge="Shares Only"
+      accent="#22c55e"
+      badgeStyle={{ background: "#166534", color: "#bbf7d0" }}
+    >
+      <div style={styles.beginnerCard}>
+        <p style={styles.beginnerSubtitle}>Simple directional play — no options required.</p>
+        <div style={styles.tradeGrid}>
+          <div><strong>Action</strong><br /><span style={{ color: isBullish ? "#22c55e" : "#ef4444", fontWeight: 700, fontSize: "1.1rem" }}>{isBullish ? "Buy Shares" : "Short Shares"}</span></div>
+          <div><strong>Symbol</strong><br />{symbol}</div>
+          <div><strong>Current Price</strong><br />${currentPrice}</div>
+          <div><strong>Stop Loss</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${stopLoss}</span></div>
+        </div>
+        <div style={styles.beginnerNote}><strong>How it works:</strong> {isBullish ? "Buy shares and hold while the stock moves up. Sell when your target is hit or your thesis changes." : "Borrow and sell shares now, buy them back cheaper later. Profit from the price decline."}</div>
+        <div style={styles.beginnerWarning}>⚠️ {isBullish ? "Risk: Stock could decline. Only invest what you can afford to lose." : "Risk: Shorting has theoretically unlimited loss if the stock rises. Use a stop loss."}</div>
+        <div style={styles.brokerLabel}>Recommended brokerage for this setup</div>
+        <a href="https://join.robinhood.com/josephm-5b8d2b" target="_blank" rel="noopener noreferrer" style={styles.affiliateBar}>
+          <span style={styles.affiliateBarLeft}><img src="https://robinhood.com/favicon.ico" alt="Robinhood" style={{ width: "18px", height: "18px", borderRadius: "4px", flexShrink: 0 }} /><span><strong>Trade on Robinhood</strong> — simple stock trading for beginner-friendly execution</span></span>
+          <span style={styles.affiliateCta}>Open Account →</span>
+        </a>
       </div>
-      <p style={styles.beginnerSubtitle}>Simple directional play — no options required.</p>
-      <div style={styles.tradeGrid}>
-        <div><strong>Action</strong><br /><span style={{ color: isBullish ? "#22c55e" : "#ef4444", fontWeight: 700, fontSize: "1.1rem" }}>{isBullish ? "Buy Shares" : "Short Shares"}</span></div>
-        <div><strong>Symbol</strong><br />{symbol}</div>
-        <div><strong>Current Price</strong><br />${currentPrice}</div>
-        <div><strong>Stop Loss</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${stopLoss}</span></div>
-      </div>
-      <div style={styles.beginnerNote}><strong>How it works:</strong> {isBullish ? "Buy shares and hold while the stock moves up. Sell when your target is hit or your thesis changes." : "Borrow and sell shares now, buy them back cheaper later. Profit from the price decline."}</div>
-      <div style={styles.beginnerWarning}>⚠️ {isBullish ? "Risk: Stock could decline. Only invest what you can afford to lose." : "Risk: Shorting has theoretically unlimited loss if the stock rises. Use a stop loss."}</div>
-      <div style={styles.brokerLabel}>Recommended brokerage for this setup</div>
-      <a href="https://join.robinhood.com/josephm-5b8d2b" target="_blank" rel="noopener noreferrer" style={styles.affiliateBar}>
-        <span style={styles.affiliateBarLeft}><img src="https://robinhood.com/favicon.ico" alt="Robinhood" style={{ width: "18px", height: "18px", borderRadius: "4px", flexShrink: 0 }} /><span><strong>Trade on Robinhood</strong> — simple stock trading for beginner-friendly execution</span></span>
-        <span style={styles.affiliateCta}>Open Account →</span>
-      </a>
-    </div>
+    </CollapsibleTradeSection>
   );
 }
+
 
 function AltTradeCard({ option, parsedLine, currentPrice }: { option: LiveLongOption; parsedLine: string | null; currentPrice: string }) {
   const price = parseFloat(currentPrice);
   const stopLoss = option.strategyType === "Long Call" ? (price * 0.95).toFixed(2) : (price * 1.05).toFixed(2);
+
   return (
-    <div style={styles.altTradeCard}>
-      <h3 style={styles.altCardTitle}>🎯 Max Risk Trade Idea</h3>
-      {parsedLine && <div style={styles.altTradeText}>{parsedLine}</div>}
-      <div style={styles.tradeGrid}>
-        <div><strong>Strategy</strong><br />{option.strategyType}</div>
-        <div><strong>Expiration</strong><br />{option.expiration}</div>
-        <div><strong>Strike</strong><br />{option.strike}</div>
-        <div><strong>Bid/Ask</strong><br />{option.bid.toFixed(2)} / {option.ask.toFixed(2)}</div>
-        <div><strong>Estimated Mid</strong><br />${option.mid.toFixed(2)}</div>
-        <div><strong>Max Risk</strong><br />${option.maxRisk.toFixed(2)}</div>
-        <div><strong>Stop Loss (Underlying)</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${stopLoss}</span></div>
+    <CollapsibleTradeSection
+      icon="🎯"
+      title="Max Risk Trade Idea"
+      subtitle="Simpler single-leg option alternative."
+      badge={option.strategyType}
+      accent="#f59e0b"
+      badgeStyle={{ background: "#3b2503", color: "#fcd34d" }}
+    >
+      <div style={styles.altTradeCard}>
+        {parsedLine && <div style={styles.altTradeText}>{parsedLine}</div>}
+        <div style={styles.tradeGrid}>
+          <div><strong>Strategy</strong><br />{option.strategyType}</div>
+          <div><strong>Expiration</strong><br />{option.expiration}</div>
+          <div><strong>Strike</strong><br />{option.strike}</div>
+          <div><strong>Bid/Ask</strong><br />{option.bid.toFixed(2)} / {option.ask.toFixed(2)}</div>
+          <div><strong>Estimated Mid</strong><br />${option.mid.toFixed(2)}</div>
+          <div><strong>Max Risk</strong><br />${option.maxRisk.toFixed(2)}</div>
+          <div><strong>Stop Loss (Underlying)</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${stopLoss}</span></div>
+        </div>
       </div>
-    </div>
+    </CollapsibleTradeSection>
   );
 }
-
-
-function TradeFiltersCard({ filters }: { filters: TradeFilters }) {
-  return (
-    <div style={styles.filterCard}>
-      <h2 style={styles.cardTitle}>🧪 Trade Filters</h2>
-      <div style={styles.filterGrid}>
-        <div><strong>Min RoR</strong><br />{(filters.minReturnOnRisk * 100).toFixed(0)}%</div>
-        <div><strong>Ideal RoR</strong><br />{(filters.idealReturnOnRisk * 100).toFixed(0)}%</div>
-        <div><strong>Max Loss/Profit</strong><br />{filters.maxLossToProfitRatio}x</div>
-        <div><strong>Short Delta Band</strong><br />{filters.preferredShortDeltaMin.toFixed(2)} - {filters.preferredShortDeltaMax.toFixed(2)}</div>
-      </div>
-      <div style={styles.filterTranslation}>
-        <strong>Translation:</strong> We only show trades where the math makes sense — good payouts, controlled risk, and a strong chance of winning. No garbage setups.
-      </div>
-    </div>
-  );
-}
-
 
 function getMarketStatus(): { label: string; color: string } {
   const now = new Date();
@@ -1112,6 +1194,19 @@ const styles: { [key: string]: React.CSSProperties } = {
   summaryIcon: { fontSize: "1rem" },
   summaryTitle: { fontSize: "0.72rem", fontWeight: 800, color: "#64748b", letterSpacing: "0.12em", textTransform: "uppercase" as const },
   summaryActionButton: { marginLeft: "auto", padding: "6px 10px", borderRadius: "8px", border: "1px solid #334155", background: "#0f172a", color: "#cbd5e1", cursor: "pointer", fontSize: "0.78rem", fontWeight: 700 },
+  collapsibleShell: { background: "#111827", border: "1px solid #334155", borderRadius: "16px", marginBottom: "16px", overflow: "hidden" as const },
+  collapsibleHeaderButton: { width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", padding: "14px 16px", border: "none", cursor: "pointer", textAlign: "left" as const },
+  collapsibleHeaderLeft: { display: "flex", alignItems: "center", gap: "12px", minWidth: 0, flex: 1 },
+  collapsibleIconWrap: { width: "34px", height: "34px", borderRadius: "999px", display: "flex", alignItems: "center", justifyContent: "center", background: "#0f172a", flexShrink: 0 },
+  collapsibleIcon: { fontSize: "1rem", lineHeight: 1 },
+  collapsibleTitleWrap: { minWidth: 0, display: "flex", flexDirection: "column" as const, gap: "3px" },
+  collapsibleTitleRow: { display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" as const },
+  collapsibleTitle: { fontSize: "1.02rem", fontWeight: 800, color: "#ffffff" },
+  collapsibleSubtitle: { fontSize: "0.82rem", color: "#94a3b8", whiteSpace: "normal" as const },
+  collapsibleBadge: { fontSize: "0.68rem", fontWeight: 800, padding: "3px 8px", borderRadius: "999px", letterSpacing: "0.04em" },
+  collapsibleChevron: { fontSize: "1rem", color: "#cbd5e1", flexShrink: 0 },
+  collapsibleBody: { padding: "16px", borderTop: "1px solid #1e293b", background: "#0f172a" },
+  advancedCardActions: { display: "flex", justifyContent: "flex-end", marginBottom: "12px" },
   summaryGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" },
   summaryItem: { display: "flex", flexDirection: "column" as const, gap: "3px" },
   summaryLabel: { fontSize: "0.68rem", color: "#475569", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.08em" },
@@ -1139,14 +1234,13 @@ const styles: { [key: string]: React.CSSProperties } = {
   metaCard: { background: "#1e293b", border: "1px solid #334155", borderRadius: "14px", padding: "16px", marginBottom: "16px", display: "flex", gap: "20px", flexWrap: "wrap" },
   filterCard: { background: "#1e293b", border: "1px solid #334155", borderRadius: "14px", padding: "16px", marginBottom: "16px" },
   filterGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "10px", color: "#cbd5e1", fontSize: "0.9rem" },
-  filterTranslation: { marginTop: "12px", padding: "10px 12px", background: "#0f172a", border: "1px solid #334155", borderRadius: "10px", color: "#cbd5e1", fontSize: "0.86rem", lineHeight: 1.6 },
   techCard: { background: "#1e293b", border: "1px solid #334155", borderRadius: "14px", padding: "16px", marginBottom: "16px" },
   techGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: "10px", marginTop: "12px" },
   techItem: { display: "flex", flexDirection: "column" as const, gap: "2px", background: "#0f172a", borderRadius: "8px", padding: "10px" },
   techLabel: { fontSize: "0.68rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.06em" },
   techValue: { fontSize: "1.05rem", fontWeight: 700, color: "#e5e7eb" },
   techNote: { fontSize: "0.72rem", color: "#64748b" },
-  beginnerCard: { background: "#0f2a1a", border: "1px solid #166534", borderRadius: "14px", padding: "16px", marginBottom: "16px" },
+  beginnerCard: { padding: 0, marginBottom: 0 },
   beginnerHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" },
   beginnerBadge: { background: "#166534", color: "#86efac", fontSize: "0.72rem", fontWeight: 700, padding: "3px 8px", borderRadius: "10px" },
   beginnerSubtitle: { margin: "0 0 14px", color: "#86efac", fontSize: "0.88rem" },
@@ -1163,8 +1257,8 @@ const styles: { [key: string]: React.CSSProperties } = {
   headlineLink: { display: "block", padding: "12px", borderRadius: "10px", border: "1px solid #334155", background: "#0f172a", color: "#e5e7eb", textDecoration: "none" },
   headlineTitle: { fontWeight: 700, marginBottom: "4px" },
   headlineSource: { fontSize: "0.9rem", color: "#94a3b8" },
-  tradeCard: { background: "#1e293b", border: "1px solid #334155", borderRadius: "14px", padding: "16px", marginBottom: "16px" },
-  altTradeCard: { background: "#18263f", border: "1px solid #334155", borderRadius: "14px", padding: "16px", marginBottom: "16px" },
+  tradeCard: { padding: 0, marginBottom: 0 },
+  altTradeCard: { padding: 0, marginBottom: 0 },
   altCardTitle: { margin: 0, marginBottom: "10px", fontSize: "1.05rem", color: "#ffffff" },
   altTradeText: { marginBottom: "12px", color: "#cbd5e1", lineHeight: 1.6 },
   tradeGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "14px", marginBottom: "16px" },
