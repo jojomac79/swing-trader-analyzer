@@ -456,6 +456,7 @@ export default function Home() {
   const [meta, setMeta] = useState<MetaData | null>(null);
   const [showGoogleGate, setShowGoogleGate] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [paywallAttemptedAgain, setPaywallAttemptedAgain] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [showFullAnalysis, setShowFullAnalysis] = useState(false);
@@ -499,20 +500,30 @@ export default function Home() {
     if (!ticker.trim()) { setError("Enter a ticker or company name."); return; }
     if (!isSignedIn) { setShowGoogleGate(true); return; }
     if (!disclaimerAccepted) { setShowDisclaimer(true); return; }
+    if (showPaywall && !isPremium) {
+      setPaywallAttemptedAgain(true);
+      setError("Daily limit reached. Upgrade to Pro for unlimited access.");
+      return;
+    }
+
     setLoading(true); setError(""); setResult(""); setMeta(null); setCopied(false);
-    setShowGoogleGate(false); setShowPaywall(false); setShowFullAnalysis(false);
+    setShowGoogleGate(false); setShowFullAnalysis(false); setPaywallAttemptedAgain(false);
     try {
       const res = await fetch("/api/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ticker }) });
       const data = await res.json();
       if (!res.ok) {
         if (res.status === 403) {
-          if (data.limitType === "anon_limit") setShowGoogleGate(true);
-          else if (data.limitType === "disclaimer_required") setShowDisclaimer(true);
-          else setShowPaywall(true);
+          if (data.limitType === "anon_limit") { setShowGoogleGate(true); return; }
+          if (data.limitType === "disclaimer_required") { setShowDisclaimer(true); return; }
+          setShowPaywall(true);
+          setPaywallAttemptedAgain(false);
+          return;
         }
-        if (res.status === 401) setShowGoogleGate(true);
+        if (res.status === 401) { setShowGoogleGate(true); return; }
         throw new Error(data.error || "Failed to analyze stock.");
       }
+      setShowPaywall(false);
+      setPaywallAttemptedAgain(false);
       setResult(data.result ?? ""); setMeta(data.meta ?? null);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -733,7 +744,7 @@ export default function Home() {
           </div>
         )}
 
-        {error && <div style={styles.error}>{error}</div>}
+        {error && (!showPaywall || paywallAttemptedAgain) && <div style={styles.error}>{error}</div>}
 
         {meta && (
           <div style={styles.metaCard}>
