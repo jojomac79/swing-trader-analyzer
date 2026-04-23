@@ -170,7 +170,7 @@ function TradeSummaryCard({ bias, confidence, strategy, target, invalidate }: {
     <div style={styles.summaryCard}>
       <div style={styles.summaryHeader}>
         <span style={styles.summaryIcon}>🎯</span>
-        <span style={styles.summaryTitle}>TRADE SUMMARY</span>
+        <span style={styles.summaryTitle}>PREFERRED TRADE SUMMARY</span>
       </div>
       <div style={styles.summaryGrid}>
         {bias && <div style={styles.summaryItem}><span style={styles.summaryLabel}>Bias</span><span style={{ ...styles.summaryValue, color: biasColor }}>{biasIcon} {bias}</span></div>}
@@ -676,7 +676,7 @@ export default function Home() {
         {showPaywall && (
           <div style={styles.paywallCard}>
             <h2 style={styles.cardTitle}>You've used your 3 free analyses today</h2>
-            <p style={styles.gateText}>Free accounts get 3 analyses per day. Resets at midnight. Upgrade to Pro for unlimited access.</p>
+            <p style={styles.gateText}>Unlock unlimited trade ideas 👇</p>
             <div style={styles.paywallActions}><button onClick={() => setShowUpgradeModal(true)} style={styles.upgradeButton}>Upgrade to Pro →</button></div>
           </div>
         )}
