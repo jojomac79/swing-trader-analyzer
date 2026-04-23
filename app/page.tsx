@@ -23,6 +23,9 @@ type LiveDebitSpread = {
   longMid: number; shortMid: number; netDebit: number; width: number;
   maxProfit: number; maxLoss: number; breakeven: number;
   pop: number | null; pop50: number | null; riskReward: number;
+  returnOnRisk?: number; maxLossToProfitRatio?: number;
+  qualityLabel?: "Trader-Grade Setup" | "Low Return Setup";
+  passesTradeFilter?: boolean;
 };
 
 type LiveIronCondor = {
