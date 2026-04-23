@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type TouchEvent } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -252,8 +252,8 @@ function CollapsibleTradeSection({
   subtitle: string;
   badge?: string;
   accent: string;
-  badgeStyle?: React.CSSProperties;
-  children: React.ReactNode;
+  badgeStyle?: CSSProperties;
+  children: ReactNode;
   defaultCollapsed?: boolean;
 }) {
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
@@ -474,6 +474,20 @@ function IronCondorCard({ spread, currentPrice, onTutorial }: { spread: LiveIron
         </a>
       </div>
     </CollapsibleTradeSection>
+  );
+}
+
+function TradeFiltersCard({ filters }: { filters: TradeFilters }) {
+  return (
+    <div style={styles.filterCard}>
+      <h2 style={styles.cardTitle}>🧮 Trade Filters</h2>
+      <div style={styles.filterGrid}>
+        <div><strong>Min RoR</strong><br />{(filters.minReturnOnRisk * 100).toFixed(0)}%</div>
+        <div><strong>Ideal RoR</strong><br />{(filters.idealReturnOnRisk * 100).toFixed(0)}%</div>
+        <div><strong>Max Loss:Profit</strong><br />{filters.maxLossToProfitRatio}:1</div>
+        <div><strong>Short Delta Range</strong><br />{filters.preferredShortDeltaMin.toFixed(2)} - {filters.preferredShortDeltaMax.toFixed(2)}</div>
+      </div>
+    </div>
   );
 }
 
@@ -732,12 +746,12 @@ export default function Home() {
   const altTrade = useMemo(() => { if (!meta) return null; return pickAltTrade(meta, bias); }, [meta, bias]);
   const marketStatus = useMemo(() => getMarketStatus(), []);
 
-  const handleUpgradeSheetTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+  const handleUpgradeSheetTouchStart = (e: TouchEvent<HTMLDivElement>) => {
     if (!isMobile) return;
     upgradeSheetStartY.current = e.touches[0].clientY;
   };
 
-  const handleUpgradeSheetTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+  const handleUpgradeSheetTouchMove = (e: TouchEvent<HTMLDivElement>) => {
     if (!isMobile || upgradeSheetStartY.current == null) return;
     const delta = e.touches[0].clientY - upgradeSheetStartY.current;
     setUpgradeSheetOffset(delta > 0 ? delta : 0);
@@ -1187,7 +1201,7 @@ export default function Home() {
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
-const styles: { [key: string]: React.CSSProperties } = {
+const styles: { [key: string]: CSSProperties } = {
   main: { minHeight: "100vh", padding: "40px 16px", color: "#e5e7eb", background: "#0f172a" },
   summaryCard: { background: "#111827", border: "1px solid #334155", borderRadius: "14px", padding: "16px 18px", marginBottom: "16px", boxShadow: "0 4px 20px rgba(0,0,0,0.3)" },
   summaryHeader: { display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" },
