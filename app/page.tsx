@@ -481,11 +481,30 @@ function TradeFiltersCard({ filters }: { filters: TradeFilters }) {
   return (
     <div style={styles.filterCard}>
       <h2 style={styles.cardTitle}>🧮 Trade Filters</h2>
+      <p style={styles.filterIntro}>
+        These are the guardrails used to avoid weak premium-selling setups and keep short strikes in a saner range.
+      </p>
       <div style={styles.filterGrid}>
-        <div><strong>Min RoR</strong><br />{(filters.minReturnOnRisk * 100).toFixed(0)}%</div>
-        <div><strong>Ideal RoR</strong><br />{(filters.idealReturnOnRisk * 100).toFixed(0)}%</div>
-        <div><strong>Max Loss:Profit</strong><br />{filters.maxLossToProfitRatio}:1</div>
-        <div><strong>Short Delta Range</strong><br />{filters.preferredShortDeltaMin.toFixed(2)} - {filters.preferredShortDeltaMax.toFixed(2)}</div>
+        <div style={styles.filterItem}>
+          <strong>Minimum Return on Risk</strong><br />
+          {(filters.minReturnOnRisk * 100).toFixed(0)}%
+          <div style={styles.filterNote}>The setup needs to pay at least this much relative to max risk.</div>
+        </div>
+        <div style={styles.filterItem}>
+          <strong>Ideal Return on Risk</strong><br />
+          {(filters.idealReturnOnRisk * 100).toFixed(0)}%
+          <div style={styles.filterNote}>If it hits this level, it is considered a stronger credit setup.</div>
+        </div>
+        <div style={styles.filterItem}>
+          <strong>Max Loss to Profit Ratio</strong><br />
+          {filters.maxLossToProfitRatio}:1
+          <div style={styles.filterNote}>Won&apos;t allow trades where the downside is too bloated versus the credit received.</div>
+        </div>
+        <div style={styles.filterItem}>
+          <strong>Preferred Short Delta Range</strong><br />
+          {filters.preferredShortDeltaMin.toFixed(2)} - {filters.preferredShortDeltaMax.toFixed(2)}
+          <div style={styles.filterNote}>That&apos;s the preferred zone for picking short strikes on credit spreads.</div>
+        </div>
       </div>
     </div>
   );
@@ -1246,6 +1265,25 @@ const styles: { [key: string]: CSSProperties } = {
   paywallCard: { background: "#1f2937", border: "1px solid #475569", borderRadius: "14px", padding: "18px", marginBottom: "16px", display: "grid", gap: "12px", boxShadow: "0 10px 30px rgba(0,0,0,0.18)" },
   paywallActions: { display: "flex", gap: "12px", flexWrap: "wrap" },
   metaCard: { background: "#1e293b", border: "1px solid #334155", borderRadius: "14px", padding: "16px", marginBottom: "16px", display: "flex", gap: "20px", flexWrap: "wrap" },
+  filterIntro: {
+    margin: "0 0 14px 0",
+    color: "#cbd5e1",
+    fontSize: "0.92rem",
+    lineHeight: 1.5,
+  },
+  filterItem: {
+    background: "rgba(15, 23, 42, 0.35)",
+    border: "1px solid rgba(148, 163, 184, 0.16)",
+    borderRadius: "12px",
+    padding: "12px",
+    color: "#e5e7eb",
+  },
+  filterNote: {
+    marginTop: "6px",
+    color: "#94a3b8",
+    fontSize: "0.82rem",
+    lineHeight: 1.45,
+  },
   filterCard: { background: "#1e293b", border: "1px solid #334155", borderRadius: "14px", padding: "16px", marginBottom: "16px" },
   filterGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "10px", color: "#cbd5e1", fontSize: "0.9rem" },
   techCard: { background: "#1e293b", border: "1px solid #334155", borderRadius: "14px", padding: "16px", marginBottom: "16px" },
