@@ -437,6 +437,60 @@ function AltTradeCard({ option, parsedLine, currentPrice }: { option: LiveLongOp
   );
 }
 
+
+function getMarketStatus(): { label: string; color: string } {
+  const now = new Date();
+
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    weekday: "short",
+    hour: "numeric",
+    minute: "numeric",
+    hour12: false,
+  }).formatToParts(now);
+
+  const weekday = parts.find((p) => p.type === "weekday")?.value ?? "Sun";
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
+  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
+
+  const dayMap: Record<string, number> = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+  };
+
+  const day = dayMap[weekday] ?? 0;
+  const totalMinutes = hour * 60 + minute;
+
+  const preMarketStart = 4 * 60;
+  const regularOpen = 9 * 60 + 30;
+  const regularClose = 16 * 60;
+  const afterHoursClose = 20 * 60;
+
+  if (day === 0 || day === 6) {
+    return { label: "🔴 Market Closed", color: "#f87171" };
+  }
+
+  if (totalMinutes >= preMarketStart && totalMinutes < regularOpen) {
+    return { label: "🟡 Pre-Market", color: "#fbbf24" };
+  }
+
+  if (totalMinutes >= regularOpen && totalMinutes < regularClose) {
+    return { label: "🟢 Market Open", color: "#4ade80" };
+  }
+
+  if (totalMinutes >= regularClose && totalMinutes < afterHoursClose) {
+    return { label: "🔵 After Hours", color: "#60a5fa" };
+  }
+
+  return { label: "🔴 Market Closed", color: "#f87171" };
+}
+
+
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function Home() {
   const { data: session, status } = useSession();
@@ -512,6 +566,7 @@ export default function Home() {
   }, [meta, preferredStrategy, bias]);
 
   const altTrade = useMemo(() => { if (!meta) return null; return pickAltTrade(meta, bias); }, [meta, bias]);
+  const marketStatus = useMemo(() => getMarketStatus(), []);
 
   const handleUpgradeSheetTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
     if (!isMobile) return;
@@ -678,6 +733,7 @@ export default function Home() {
           <div style={styles.heroText}>
             <h1 style={styles.title}>Swing Trade Analyzer</h1>
             <p style={styles.subtitle}>Enter a ticker or company name. Get trade breakdowns with real-time options data, earnings context, and AI-selected strategy.</p>
+            <div style={{ ...styles.marketStatus, color: marketStatus.color }}>{marketStatus.label}</div>
           </div>
           <div style={styles.statusCard}>
             <div>
@@ -979,6 +1035,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   heroText: { flex: 1, minWidth: "280px" },
   title: { margin: 0, fontSize: "2.1rem", lineHeight: 1.1, color: "#ffffff" },
   subtitle: { marginTop: "10px", marginBottom: 0, color: "#cbd5e1", lineHeight: 1.5, maxWidth: "640px" },
+  marketStatus: { marginTop: "10px", fontSize: "0.95rem", fontWeight: 500, color: "#94a3b8" },
   statusCard: { background: "#111827", border: "1px solid #334155", borderRadius: "14px", padding: "14px 16px", minWidth: "260px", display: "grid", gap: "8px", boxShadow: "0 10px 30px rgba(0,0,0,0.18)" },
   manageSubButton: { padding: "8px 12px", borderRadius: "8px", border: "1px solid #475569", background: "transparent", color: "#94a3b8", cursor: "pointer", fontSize: "0.85rem", justifySelf: "start" as const },
   signOutButton: { padding: "8px 12px", borderRadius: "8px", border: "1px solid #334155", background: "transparent", color: "#64748b", cursor: "pointer", fontSize: "0.85rem", justifySelf: "start" as const },
