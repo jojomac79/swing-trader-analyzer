@@ -456,29 +456,34 @@ function buildTechnicalSection(tech: TechData, price: number): string {
   return lines.join("\n");
 }
 
-// ─── Strategy ranking layer ───────────────────────────────────────────────────
+// ─── Gated regime strategy selection ─────────────────────────────────────────
+
+type MarketRegime = "trend" | "moderate" | "neutral";
+
 type BiasSignal = {
   bias: "Bullish" | "Bearish" | "Neutral";
   confidence: number; // 1-10
   trendStrength: "weak" | "moderate" | "strong";
   momentum: "bullish" | "bearish" | "mixed";
+  regime: MarketRegime;
 };
 
-type RankedStrategy =
-  | { kind: "callDebit"; score: number; reason: string }
-  | { kind: "putDebit"; score: number; reason: string }
-  | { kind: "bullPut"; score: number; reason: string }
-  | { kind: "bearCall"; score: number; reason: string }
-  | { kind: "callDiagonal"; score: number; reason: string }
-  | { kind: "putDiagonal"; score: number; reason: string }
-  | { kind: "ironCondor"; score: number; reason: string };
+type StrategyKind = "callDebit" | "putDebit" | "bullPut" | "bearCall" | "callDiagonal" | "putDiagonal" | "ironCondor";
+
+type RankedStrategy = {
+  kind: StrategyKind;
+  score: number;
+  reason: string;
+};
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
-function inferBiasSignal(tech: TechData | null, price: number): BiasSignal {
-  if (!tech) return { bias: "Neutral", confidence: 5, trendStrength: "weak", momentum: "mixed" };
+function inferBiasSignal(tech: TechData | null): BiasSignal {
+  if (!tech) {
+    return { bias: "Neutral", confidence: 5, trendStrength: "weak", momentum: "mixed", regime: "neutral" };
+  }
 
   let bull = 0;
   let bear = 0;
@@ -486,8 +491,8 @@ function inferBiasSignal(tech: TechData | null, price: number): BiasSignal {
   if (tech.rsi14 !== null) {
     if (tech.rsi14 >= 60 && tech.rsi14 < 75) bull += 1.25;
     else if (tech.rsi14 <= 40 && tech.rsi14 > 25) bear += 1.25;
-    else if (tech.rsi14 >= 75) bear += 0.75; // overbought — lean against
-    else if (tech.rsi14 <= 25) bull += 0.75; // oversold bounce
+    else if (tech.rsi14 >= 75) bear += 0.75;  // overbought — lean against
+    else if (tech.rsi14 <= 25) bull += 0.75;  // oversold bounce
   }
 
   if (tech.macdLine !== null && tech.macdSignal !== null) {
@@ -531,99 +536,128 @@ function inferBiasSignal(tech: TechData | null, price: number): BiasSignal {
     else if (tech.macdLine < tech.macdSignal) momentum = "bearish";
   }
 
-  return { bias, confidence, trendStrength, momentum };
-}
-
-function scoreBullPut(s: LiveCreditSpread, signal: BiasSignal, tech: TechData | null, price: number): RankedStrategy {
-  let score = 0;
-  if (signal.bias === "Bullish") score += 20;
-  if (signal.confidence >= 5 && signal.confidence <= 7.5) score += 12;
-  if (signal.confidence < 8) score += 6;
-  if (signal.trendStrength === "moderate") score += 8;
-  if (signal.trendStrength === "strong") score += 4;
-  if (s.pop !== null) score += Math.max(0, s.pop - 60) * 0.7;
-  score += s.riskReward * 6;
-  if (tech?.weeklySupport !== null && tech?.weeklySupport !== undefined && s.shortStrike < tech.weeklySupport) score += 8;
-  if (tech?.rsi14 !== null && tech?.rsi14 !== undefined && tech.rsi14 >= 70) score -= 10;
-  if (tech?.volumeRatio !== null && tech?.volumeRatio !== undefined && tech.volumeRatio >= 1.8 && signal.confidence >= 8) score -= 6;
-  return { kind: "bullPut", score, reason: "Moderate bullish setup with income-friendly profile." };
-}
-
-function scoreBearCall(s: LiveCreditSpread, signal: BiasSignal, tech: TechData | null, price: number): RankedStrategy {
-  let score = 0;
-  if (signal.bias === "Bearish") score += 20;
-  if (signal.confidence >= 5 && signal.confidence <= 7.5) score += 12;
-  if (signal.confidence < 8) score += 6;
-  if (signal.trendStrength === "moderate") score += 8;
-  if (signal.trendStrength === "strong") score += 4;
-  if (s.pop !== null) score += Math.max(0, s.pop - 60) * 0.7;
-  score += s.riskReward * 6;
-  if (tech?.weeklyResistance !== null && tech?.weeklyResistance !== undefined && s.shortStrike > tech.weeklyResistance) score += 8;
-  if (tech?.rsi14 !== null && tech?.rsi14 !== undefined && tech.rsi14 <= 30) score -= 10;
-  if (tech?.volumeRatio !== null && tech?.volumeRatio !== undefined && tech.volumeRatio >= 1.8 && signal.confidence >= 8) score -= 6;
-  return { kind: "bearCall", score, reason: "Moderate bearish setup with higher-probability premium selling." };
-}
-
-function scoreCallDebit(s: LiveDebitSpread, signal: BiasSignal, tech: TechData | null): RankedStrategy {
-  let score = 0;
-  if (signal.bias === "Bullish") score += 18;
-  if (signal.confidence >= 7.5) score += 16;
-  if (signal.trendStrength === "strong") score += 12;
-  if (signal.momentum === "bullish") score += 10;
-  score += s.riskReward * 5;
-  if (s.pop !== null) score += Math.max(0, s.pop - 45) * 0.35;
-  if (tech?.rsi14 !== null && tech?.rsi14 !== undefined && tech.rsi14 >= 72) score -= 12;
-  if (tech?.volumeRatio !== null && tech?.volumeRatio !== undefined && tech.volumeRatio >= 1.5) score += 5;
-  return { kind: "callDebit", score, reason: "Higher-conviction bullish momentum play." };
-}
-
-function scorePutDebit(s: LiveDebitSpread, signal: BiasSignal, tech: TechData | null): RankedStrategy {
-  let score = 0;
-  if (signal.bias === "Bearish") score += 18;
-  if (signal.confidence >= 7.5) score += 16;
-  if (signal.trendStrength === "strong") score += 12;
-  if (signal.momentum === "bearish") score += 10;
-  score += s.riskReward * 5;
-  if (s.pop !== null) score += Math.max(0, s.pop - 45) * 0.35;
-  if (tech?.rsi14 !== null && tech?.rsi14 !== undefined && tech.rsi14 <= 28) score -= 12;
-  if (tech?.volumeRatio !== null && tech?.volumeRatio !== undefined && tech.volumeRatio >= 1.5) score += 5;
-  return { kind: "putDebit", score, reason: "Higher-conviction bearish momentum play." };
-}
-
-function scoreIronCondor(s: LiveIronCondor, signal: BiasSignal, tech: TechData | null, price: number): RankedStrategy {
-  let score = 0;
-  if (signal.bias === "Neutral") score += 24;
-  if (signal.confidence <= 6) score += 10;
-  if (signal.trendStrength === "weak") score += 10;
-  if (s.pop !== null) score += Math.max(0, s.pop - 55) * 0.5;
-  score += s.riskReward * 5;
-  if (tech?.volumeRatio !== null && tech?.volumeRatio !== undefined && tech.volumeRatio < 1.1) score += 6;
-  if (tech?.weeklySupport !== null && tech?.weeklySupport !== undefined && tech?.weeklyResistance !== null && tech?.weeklyResistance !== undefined) {
-    if (price > tech.weeklySupport && price < tech.weeklyResistance) score += 6;
+  // ── STEP 1: Classify the market regime ──────────────────────────────────────
+  let regime: MarketRegime;
+  if (confidence >= 7.5 && trendStrength === "strong") {
+    regime = "trend";
+  } else if (confidence >= 5 && confidence < 7.5) {
+    regime = "moderate";
+  } else {
+    regime = "neutral";
   }
-  return { kind: "ironCondor", score, reason: "Mixed/range-bound setup favors premium selling on both sides." };
+
+  return { bias, confidence, trendStrength, momentum, regime };
 }
 
-function rankStrategies(args: {
-  signal: BiasSignal; tech: TechData | null; price: number;
-  liveCallDebit: LiveDebitSpread | null; livePutDebit: LiveDebitSpread | null;
-  liveBullPut: LiveCreditSpread | null; liveBearCall: LiveCreditSpread | null;
-  liveCallDiagonal: LiveDiagonalSpread | null; livePutDiagonal: LiveDiagonalSpread | null;
+// ── Score helpers (only called within their allowed gate) ────────────────────
+
+function scoreCreditSpread(s: LiveCreditSpread, signal: BiasSignal, tech: TechData | null, isBull: boolean): number {
+  let score = 0;
+  if (isBull && signal.bias === "Bullish") score += 20;
+  if (!isBull && signal.bias === "Bearish") score += 20;
+  if (s.pop !== null) score += Math.max(0, s.pop - 60) * 0.8;
+  score += s.riskReward * 8;
+  // bonus: short strike is beyond nearby S/R
+  if (isBull && tech?.weeklySupport != null && s.shortStrike < tech.weeklySupport) score += 10;
+  if (!isBull && tech?.weeklyResistance != null && s.shortStrike > tech.weeklyResistance) score += 10;
+  // penalty: chasing extremes
+  if (isBull && tech?.rsi14 != null && tech.rsi14 >= 72) score -= 12;
+  if (!isBull && tech?.rsi14 != null && tech.rsi14 <= 28) score -= 12;
+  return score;
+}
+
+function scoreDebitSpread(s: LiveDebitSpread, signal: BiasSignal, tech: TechData | null, isBull: boolean): number {
+  let score = 0;
+  if (isBull && signal.bias === "Bullish") score += 18;
+  if (!isBull && signal.bias === "Bearish") score += 18;
+  if (signal.momentum === (isBull ? "bullish" : "bearish")) score += 10;
+  score += s.riskReward * 6;
+  if (s.pop !== null) score += Math.max(0, s.pop - 45) * 0.4;
+  if (tech?.volumeRatio != null && tech.volumeRatio >= 1.5) score += 5;
+  return score;
+}
+
+function scoreIronCondor(s: LiveIronCondor, signal: BiasSignal, tech: TechData | null, price: number): number {
+  let score = 50; // base — condor only runs in neutral gate so it starts ahead
+  if (signal.confidence <= 5) score += 10;
+  if (signal.trendStrength === "weak") score += 10;
+  if (s.pop !== null) score += Math.max(0, s.pop - 55) * 0.6;
+  score += s.riskReward * 6;
+  if (tech?.volumeRatio != null && tech.volumeRatio < 1.1) score += 8;
+  if (tech?.weeklySupport != null && tech?.weeklyResistance != null) {
+    if (price > tech.weeklySupport && price < tech.weeklyResistance) score += 8;
+  }
+  return score;
+}
+
+// ── STEP 2+3: Gate then score ────────────────────────────────────────────────
+
+function selectGatedStrategies(args: {
+  signal: BiasSignal;
+  tech: TechData | null;
+  price: number;
+  liveCallDebit: LiveDebitSpread | null;
+  livePutDebit: LiveDebitSpread | null;
+  liveBullPut: LiveCreditSpread | null;
+  liveBearCall: LiveCreditSpread | null;
+  liveCallDiagonal: LiveDiagonalSpread | null;
+  livePutDiagonal: LiveDiagonalSpread | null;
   liveIronCondor: LiveIronCondor | null;
 }): RankedStrategy[] {
-  const out: RankedStrategy[] = [];
-  if (args.liveBullPut) out.push(scoreBullPut(args.liveBullPut, args.signal, args.tech, args.price));
-  if (args.liveBearCall) out.push(scoreBearCall(args.liveBearCall, args.signal, args.tech, args.price));
-  if (args.liveCallDebit) out.push(scoreCallDebit(args.liveCallDebit, args.signal, args.tech));
-  if (args.livePutDebit) out.push(scorePutDebit(args.livePutDebit, args.signal, args.tech));
-  if (args.liveIronCondor) out.push(scoreIronCondor(args.liveIronCondor, args.signal, args.tech, args.price));
-  if (args.liveCallDiagonal && args.signal.bias === "Bullish" && args.signal.confidence >= 6 && args.signal.confidence < 8) {
-    out.push({ kind: "callDiagonal", score: 62, reason: "Bullish but not explosive; diagonal can soften theta burn." });
+  const { signal, tech, price } = args;
+  const candidates: RankedStrategy[] = [];
+
+  if (signal.regime === "trend") {
+    // ── TREND: only directional plays ────────────────────────────────────────
+    if (signal.bias !== "Bearish" && args.liveCallDebit) {
+      candidates.push({ kind: "callDebit", score: scoreDebitSpread(args.liveCallDebit, signal, tech, true), reason: "Strong trend + conviction — full directional exposure justified." });
+    }
+    if (signal.bias !== "Bullish" && args.livePutDebit) {
+      candidates.push({ kind: "putDebit", score: scoreDebitSpread(args.livePutDebit, signal, tech, false), reason: "Strong downtrend — put debit captures directional move." });
+    }
+    if (signal.bias !== "Bearish" && args.liveCallDiagonal) {
+      candidates.push({ kind: "callDiagonal", score: 55, reason: "Trend regime but diagonal softens theta burn if move is gradual." });
+    }
+    if (signal.bias !== "Bullish" && args.livePutDiagonal) {
+      candidates.push({ kind: "putDiagonal", score: 55, reason: "Downtrend regime but diagonal fits if collapse isn't immediate." });
+    }
   }
-  if (args.livePutDiagonal && args.signal.bias === "Bearish" && args.signal.confidence >= 6 && args.signal.confidence < 8) {
-    out.push({ kind: "putDiagonal", score: 62, reason: "Bearish but not straight-line collapse; diagonal fits better than pure long premium." });
+
+  else if (signal.regime === "moderate") {
+    // ── MODERATE: credit spreads dominate ────────────────────────────────────
+    if (signal.bias !== "Bearish" && args.liveBullPut) {
+      candidates.push({ kind: "bullPut", score: scoreCreditSpread(args.liveBullPut, signal, tech, true), reason: "Moderate bullish setup — credit spread collects premium with high PoP." });
+    }
+    if (signal.bias !== "Bullish" && args.liveBearCall) {
+      candidates.push({ kind: "bearCall", score: scoreCreditSpread(args.liveBearCall, signal, tech, false), reason: "Moderate bearish setup — bear call captures premium above resistance." });
+    }
+    // diagonals only as fallback if no credit spreads exist
+    if (candidates.length === 0) {
+      if (signal.bias !== "Bearish" && args.liveCallDiagonal) {
+        candidates.push({ kind: "callDiagonal", score: 50, reason: "No credit spreads available — diagonal is next best moderate play." });
+      }
+      if (signal.bias !== "Bullish" && args.livePutDiagonal) {
+        candidates.push({ kind: "putDiagonal", score: 50, reason: "No credit spreads available — put diagonal is next best moderate play." });
+      }
+    }
   }
-  return out.sort((a, b) => b.score - a.score);
+
+  else {
+    // ── NEUTRAL: condor first, credit spreads as fallback ─────────────────────
+    if (args.liveIronCondor) {
+      candidates.push({ kind: "ironCondor", score: scoreIronCondor(args.liveIronCondor, signal, tech, price), reason: "Neutral/range-bound — condor collects on both sides." });
+    }
+    if (candidates.length === 0) {
+      if (args.liveBullPut) {
+        candidates.push({ kind: "bullPut", score: scoreCreditSpread(args.liveBullPut, signal, tech, true), reason: "No condor — bull put is safest fallback in low-conviction environment." });
+      }
+      if (args.liveBearCall) {
+        candidates.push({ kind: "bearCall", score: scoreCreditSpread(args.liveBearCall, signal, tech, false), reason: "No condor — bear call captures elevated premium above current range." });
+      }
+    }
+  }
+
+  return candidates.sort((a, b) => b.score - a.score);
 }
 
 // ─── Free tier limits ─────────────────────────────────────────────────────────
@@ -801,10 +835,18 @@ export async function POST(req: Request) {
     const liveLongCall     = buildLongCall(nearOptions, currentPriceNumber, nearExpiration);
     const liveLongPut      = buildLongPut(nearOptions, currentPriceNumber, nearExpiration);
 
-    // ─── Strategy ranking ──────────────────────────────────────────────────────
-    const biasSignal = inferBiasSignal(techData, currentPriceNumber);
+    const resolutionSection = resolved.resolvedFromName
+      ? `Input Resolved:\n- Original: ${resolved.originalInput}\n- Ticker: ${symbol}\n- Company: ${resolved.resolvedDisplayName ?? "Unknown"}`
+      : `Input Resolved:\n- Ticker: ${symbol}`;
 
-    const rankedStrategies = rankStrategies({
+    const headlinesSection = recentHeadlines.length
+      ? `RECENT HEADLINES:\n${recentHeadlines.map((h, i) => `${i + 1}. ${h.headline} (${h.source})`).join("\n")}`
+      : "RECENT HEADLINES:\n- No relevant recent headlines found.";
+
+    // ── Gated regime selection ───────────────────────────────────────────────
+    const biasSignal = inferBiasSignal(techData);
+
+    const gatedCandidates = selectGatedStrategies({
       signal: biasSignal,
       tech: techData,
       price: currentPriceNumber,
@@ -817,17 +859,20 @@ export async function POST(req: Request) {
       liveIronCondor,
     });
 
-    const topRankedSection = rankedStrategies.length
-      ? `RANKED STRATEGY PREFERENCE (computed from technicals — use as primary tiebreaker):\n${rankedStrategies.slice(0, 3).map((r, i) => `${i + 1}. ${r.kind} — score ${r.score.toFixed(1)} — ${r.reason}`).join("\n")}`
-      : `RANKED STRATEGY PREFERENCE:\n- No ranked candidates available.`;
+    const regimeLabel =
+      biasSignal.regime === "trend" ? `TREND (confidence ${biasSignal.confidence.toFixed(1)}/10, ${biasSignal.trendStrength} trend) → directional plays only` :
+      biasSignal.regime === "moderate" ? `MODERATE (confidence ${biasSignal.confidence.toFixed(1)}/10) → credit spreads preferred` :
+      `NEUTRAL (confidence ${biasSignal.confidence.toFixed(1)}/10, weak trend) → condor / range plays`;
 
-    const resolutionSection = resolved.resolvedFromName
-      ? `Input Resolved:\n- Original: ${resolved.originalInput}\n- Ticker: ${symbol}\n- Company: ${resolved.resolvedDisplayName ?? "Unknown"}`
-      : `Input Resolved:\n- Ticker: ${symbol}`;
+    const gatedSection = gatedCandidates.length
+      ? `MARKET REGIME: ${regimeLabel}
 
-    const headlinesSection = recentHeadlines.length
-      ? `RECENT HEADLINES:\n${recentHeadlines.map((h, i) => `${i + 1}. ${h.headline} (${h.source})`).join("\n")}`
-      : "RECENT HEADLINES:\n- No relevant recent headlines found.";
+GATED STRATEGY SHORTLIST (scored within this regime only — pick from these):
+${gatedCandidates.map((r, i) => `${i + 1}. ${r.kind} — score ${r.score.toFixed(1)} — ${r.reason}`).join("\n")}`
+      : `MARKET REGIME: ${regimeLabel}
+
+GATED STRATEGY SHORTLIST:
+- No valid candidates in this regime. Use No Trade.`;
 
     const prompt = `You are a sharp, no-BS stock trader with deep technical analysis expertise.
 
@@ -840,24 +885,20 @@ ${resolutionSection}
 ${technicalSection ? technicalSection + "\n" : ""}
 ${headlinesSection}
 
-${topRankedSection}
+${gatedSection}
 
 ${buildStrategySection({ callDebit: liveCallDebit, putDebit: livePutDebit, bullPut: liveBullPut, bearCall: liveBearCall, callDiagonal: liveCallDiagonal, putDiagonal: livePutDiagonal, ironCondor: liveIronCondor, longCall: liveLongCall, longPut: liveLongPut })}
 
-Pick the best-fit strategy: Call Debit Spread / Put Debit Spread / Bull Put Spread / Bear Call Spread / Call Diagonal / Put Diagonal / Iron Condor / No Trade
-
-CRITICAL STRATEGY SELECTION RULES:
-- Do NOT default to debit spreads.
-- Use the RANKED STRATEGY PREFERENCE above as your primary tiebreaker — only override it with a clear, explicit reason.
-- Prefer credit spreads (Bull Put / Bear Call) when conviction is low-to-medium, the trend is not explosive, and PoP is solid. Credit spreads are especially preferred after big runs (overbought RSI) or when a downturn is losing momentum (oversold RSI).
-- Prefer debit spreads only when conviction is high (strong trend alignment, clean momentum, volume confirmation) and the setup genuinely needs directional exposure.
-- Prefer iron condors only when bias is genuinely neutral/range-bound and trend strength is weak.
-- Use technical indicators to determine bias and conviction — NOT to automatically favor directional debit spreads.
-- Weight PoP, risk/reward, and strike placement relative to support/resistance heavily when evaluating credit spreads.
-- Use headlines as supporting context only.
-- Do not invent live pricing for strategies not shown above.
+STRATEGY SELECTION RULES:
+- The GATED STRATEGY SHORTLIST above is your menu. Pick from it — do not override the regime gate unless the shortlist is empty.
+- The #1 ranked strategy in the shortlist is strongly preferred. Only pick #2 or lower with a specific reason.
+- In TREND regime: debit spreads or diagonals only. Credit spreads are not appropriate here.
+- In MODERATE regime: credit spreads dominate. Diagonals are only a fallback if no credit spread exists.
+- In NEUTRAL regime: iron condor first. Credit spreads only if no condor is available.
+- Do not invent live pricing for strategies not shown in the live candidates section.
+- No Trade if the shortlist is empty or no live candidate exists.
+- Use headlines as context only.
 - If diagonal, note payoff is path-dependent.
-- No Trade if no good live candidate exists.
 
 Format EXACTLY (no markdown bold on the first bullet of Overall Bias or Preferred Strategy):
 
@@ -868,7 +909,7 @@ Overall Bias:
 
 Preferred Strategy:
 - (Strategy name exactly as written) ← plain text, no bold, must be one of: Call Debit Spread / Put Debit Spread / Bull Put Spread / Bear Call Spread / Call Diagonal / Put Diagonal / Iron Condor / No Trade
-- (One sentence on why this structure fits)
+- (One sentence on why this structure fits the current regime)
 
 Bull Case:
 - (Upside driver)
@@ -893,7 +934,7 @@ Short-Term Outlook (1-4 weeks):
 Trade Idea:
 - (Live strategy with real strikes, expiration, debit/credit)
 - Target: (price target or % profit target, e.g. "50% of max profit" or "$X price target")
-- Invalidate: (specific price level that breaks the thesis, e.g. "break above $340 with volume")
+- Invalidate: (specific price level that breaks the thesis)
 - (If diagonal, mention path-dependent payoff)
 - (If No Trade, say what confirmation is needed)
 
