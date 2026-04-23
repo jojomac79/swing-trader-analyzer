@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -461,6 +461,8 @@ export default function Home() {
   const [showTutorial, setShowTutorial] = useState(false);
   const [showFullAnalysis, setShowFullAnalysis] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [upgradeSheetOffset, setUpgradeSheetOffset] = useState(0);
+  const upgradeSheetStartY = useRef<number | null>(null);
 
   useEffect(() => {
     if (!isSignedIn) return;
@@ -480,6 +482,13 @@ export default function Home() {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  useEffect(() => {
+    if (!showUpgradeModal) {
+      setUpgradeSheetOffset(0);
+      upgradeSheetStartY.current = null;
+    }
+  }, [showUpgradeModal]);
 
   const bias = useMemo(() => getBiasFromResult(result), [result]);
   const preferredStrategy = useMemo(() => getPreferredStrategy(result), [result]);
@@ -503,6 +512,26 @@ export default function Home() {
   }, [meta, preferredStrategy, bias]);
 
   const altTrade = useMemo(() => { if (!meta) return null; return pickAltTrade(meta, bias); }, [meta, bias]);
+
+  const handleUpgradeSheetTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!isMobile) return;
+    upgradeSheetStartY.current = e.touches[0].clientY;
+  };
+
+  const handleUpgradeSheetTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!isMobile || upgradeSheetStartY.current == null) return;
+    const delta = e.touches[0].clientY - upgradeSheetStartY.current;
+    setUpgradeSheetOffset(delta > 0 ? delta : 0);
+  };
+
+  const handleUpgradeSheetTouchEnd = () => {
+    if (!isMobile) return;
+    if (upgradeSheetOffset > 140) {
+      setShowUpgradeModal(false);
+    }
+    setUpgradeSheetOffset(0);
+    upgradeSheetStartY.current = null;
+  };
 
   const analyzeStock = async () => {
     if (!ticker.trim()) { setError("Enter a ticker or company name."); return; }
@@ -701,8 +730,23 @@ export default function Home() {
         )}
 
         {showUpgradeModal && (
-          <div style={styles.upgradeOverlay}>
-            <div style={isMobile ? styles.upgradeModalMobile : styles.upgradeModalWide}>
+          <div style={styles.upgradeOverlay} onClick={() => setShowUpgradeModal(false)}>
+            <div
+              style={
+                isMobile
+                  ? { ...styles.upgradeBottomSheet, transform: `translateY(${upgradeSheetOffset}px)` }
+                  : styles.upgradeModalWide
+              }
+              onClick={(e) => e.stopPropagation()}
+              onTouchStart={handleUpgradeSheetTouchStart}
+              onTouchMove={handleUpgradeSheetTouchMove}
+              onTouchEnd={handleUpgradeSheetTouchEnd}
+            >
+              {isMobile && (
+                <div style={styles.sheetHandleWrap}>
+                  <div style={styles.sheetHandle} />
+                </div>
+              )}
               <button onClick={() => setShowUpgradeModal(false)} style={styles.upgradeCloseBtn}>✕</button>
               <div style={styles.upgradeModalHeader}>
                 <div style={styles.upgradeBadge}>🚀 Early Access Pricing</div>
@@ -990,8 +1034,9 @@ const styles: { [key: string]: React.CSSProperties } = {
   gateText: { margin: 0, color: "#cbd5e1", lineHeight: 1.6 },
   result: { whiteSpace: "pre-wrap", lineHeight: 1.7, margin: 0, color: "#e5e7eb", fontSize: "0.98rem" },
   proBadge: { marginLeft: "8px", background: "#22c55e", color: "#04130a", fontSize: "0.7rem", fontWeight: 800, padding: "2px 7px", borderRadius: "10px", verticalAlign: "middle" },
-  upgradeOverlay: { position: "fixed" as const, inset: 0, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(4px)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" },
+  upgradeOverlay: { position: "fixed" as const, inset: 0, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(4px)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center", padding: "0" },
   upgradeModalWide: { background: "#111827", border: "1px solid #334155", borderRadius: "16px", padding: "28px 28px 24px", maxWidth: "720px", width: "100%", boxShadow: "0 25px 60px rgba(0,0,0,0.5)", position: "relative" as const },
+  upgradeBottomSheet: { position: "relative", width: "100%", maxWidth: "100%", maxHeight: "88vh", overflowY: "auto", background: "linear-gradient(180deg, #0f172a 0%, #111827 100%)", borderTop: "1px solid #334155", borderLeft: "1px solid #334155", borderRight: "1px solid #334155", borderRadius: "22px 22px 0 0", padding: "12px 16px 28px", boxShadow: "0 -20px 60px rgba(0,0,0,0.55)", touchAction: "pan-y", transition: "transform 0.22s ease" },
   upgradeModalHeader: { marginBottom: "20px", display: "flex", flexDirection: "column" as const, gap: "8px" },
   pricingGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" },
   proCard: { background: "#0f2a1a", border: "2px solid #22c55e", borderRadius: "14px", padding: "20px", display: "flex", flexDirection: "column" as const, gap: "10px" },
@@ -1022,6 +1067,8 @@ const styles: { [key: string]: React.CSSProperties } = {
   upgradeCheckoutBtn: { padding: "13px", borderRadius: "10px", border: "none", background: "#22c55e", color: "#04130a", cursor: "pointer", fontSize: "0.95rem", fontWeight: 800, width: "100%" },
   upgradeDisclaimer: { margin: 0, fontSize: "0.72rem", color: "#475569", textAlign: "center" as const },
   upgradeCloseBtn: { position: "absolute" as const, top: "16px", right: "16px", background: "none", border: "none", color: "#64748b", cursor: "pointer", fontSize: "1.1rem", padding: "4px 8px" },
+  sheetHandleWrap: { display: "flex", justifyContent: "center", alignItems: "center", paddingBottom: "8px" },
+  sheetHandle: { width: "46px", height: "5px", borderRadius: "999px", background: "#475569" },
   footer: { marginTop: "32px", paddingTop: "16px", borderTop: "1px solid #1e293b", textAlign: "center" as const, display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" },
   footerDivider: { color: "#334155", fontSize: "0.8rem" },
   disclaimerLink: { background: "none", border: "none", color: "#475569", cursor: "pointer", fontSize: "0.8rem", textDecoration: "underline", padding: 0 },
