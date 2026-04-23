@@ -482,28 +482,39 @@ function TradeFiltersCard({ filters }: { filters: TradeFilters }) {
     <div style={styles.filterCard}>
       <h2 style={styles.cardTitle}>🧮 Trade Filters</h2>
       <p style={styles.filterIntro}>
-        These are the guardrails used to avoid weak premium-selling setups and keep short strikes in a saner range.
+        Plain English: the app is trying not to recommend junky little premium plays just because the PoP looks cute.
       </p>
+      <div style={{ ...styles.beginnerNote, marginBottom: "14px" }}>
+        <strong>What this means:</strong> credit spreads and condors need decent payout, reasonable downside, and short strikes in a safer sweet spot.
+      </div>
       <div style={styles.filterGrid}>
         <div style={styles.filterItem}>
           <strong>Minimum Return on Risk</strong><br />
           {(filters.minReturnOnRisk * 100).toFixed(0)}%
-          <div style={styles.filterNote}>The setup needs to pay at least this much relative to max risk.</div>
+          <div style={styles.filterNote}>
+            Translation: if a premium-selling trade pays less than this versus the max risk, it&apos;s too weak and should usually get tossed.
+          </div>
         </div>
         <div style={styles.filterItem}>
           <strong>Ideal Return on Risk</strong><br />
           {(filters.idealReturnOnRisk * 100).toFixed(0)}%
-          <div style={styles.filterNote}>If it hits this level, it is considered a stronger credit setup.</div>
+          <div style={styles.filterNote}>
+            Translation: this is the healthier target zone. If a credit setup reaches this, it&apos;s a much more respectable payout.
+          </div>
         </div>
         <div style={styles.filterItem}>
           <strong>Max Loss to Profit Ratio</strong><br />
           {filters.maxLossToProfitRatio}:1
-          <div style={styles.filterNote}>Won&apos;t allow trades where the downside is too bloated versus the credit received.</div>
+          <div style={styles.filterNote}>
+            Translation: the app won&apos;t bless a trade where you&apos;re risking a stupid amount just to make a tiny credit.
+          </div>
         </div>
         <div style={styles.filterItem}>
           <strong>Preferred Short Delta Range</strong><br />
           {filters.preferredShortDeltaMin.toFixed(2)} - {filters.preferredShortDeltaMax.toFixed(2)}
-          <div style={styles.filterNote}>That&apos;s the preferred zone for picking short strikes on credit spreads.</div>
+          <div style={styles.filterNote}>
+            Translation: for credit spreads, this is the preferred zone for the short strike so it&apos;s not too aggressive or too far OTM for crumbs.
+          </div>
         </div>
       </div>
     </div>
