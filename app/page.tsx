@@ -460,6 +460,7 @@ export default function Home() {
   const [copied, setCopied] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [showFullAnalysis, setShowFullAnalysis] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     if (!isSignedIn) return;
@@ -472,6 +473,13 @@ export default function Home() {
   useEffect(() => {
     if (isSignedIn) { setShowGoogleGate(false); setShowPaywall(false); setError(""); }
   }, [isSignedIn]);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const bias = useMemo(() => getBiasFromResult(result), [result]);
   const preferredStrategy = useMemo(() => getPreferredStrategy(result), [result]);
@@ -694,14 +702,14 @@ export default function Home() {
 
         {showUpgradeModal && (
           <div style={styles.upgradeOverlay}>
-            <div style={styles.upgradeModalWide}>
+            <div style={isMobile ? styles.upgradeModalMobile : styles.upgradeModalWide}>
               <button onClick={() => setShowUpgradeModal(false)} style={styles.upgradeCloseBtn}>✕</button>
               <div style={styles.upgradeModalHeader}>
                 <div style={styles.upgradeBadge}>🚀 Early Access Pricing</div>
                 <h2 style={styles.upgradeTitle}>Choose Your Plan</h2>
                 <p style={styles.upgradeSubtitle}>Unlock unlimited analyses and more powerful tools.</p>
               </div>
-              <div style={styles.pricingGrid}>
+              <div style={isMobile ? styles.pricingGridMobile : styles.pricingGrid}>
                 <div style={styles.proCard}>
                   <div style={styles.proCardBadge}>⚡ Pro</div>
                   <div style={styles.planToggle}>
