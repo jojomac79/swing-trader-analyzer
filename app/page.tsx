@@ -231,7 +231,7 @@ function DebitCard({ spread, currentPrice, onTutorial }: { spread: LiveDebitSpre
       <StatBar pop={spread.pop} pop50={spread.pop50} riskReward={spread.riskReward} />
       <div style={styles.brokerLabel}>Recommended brokerage for this setup</div>
       <a href="https://tastytrade.com/welcome/?referralCode=WZQ7CK6HGE" target="_blank" rel="noopener noreferrer" style={styles.affiliateBar}>
-        <span style={styles.affiliateBarLeft}><img src="https://tastytrade.com/favicon.ico" alt="tastytrade" style={{ width: "18px", height: "18px", borderRadius: "4px", flexShrink: 0 }} /><span><strong>Trade on tastytrade</strong> — built for options traders &amp; multi-leg setups</span></span>
+        <span style={styles.affiliateBarLeft}><span style={{ fontSize: "18px", lineHeight: 1, flexShrink: 0 }}>🍒</span><span><strong>Trade on tastytrade</strong> — built for options traders &amp; multi-leg setups</span></span>
         <span style={styles.affiliateCta}>Open Account →</span>
       </a>
     </div>
@@ -264,7 +264,7 @@ function CreditCard({ spread, currentPrice, onTutorial }: { spread: LiveCreditSp
       <StatBar pop={spread.pop} pop50={spread.pop50} riskReward={spread.riskReward} />
       <div style={styles.brokerLabel}>Recommended brokerage for this setup</div>
       <a href="https://tastytrade.com/welcome/?referralCode=WZQ7CK6HGE" target="_blank" rel="noopener noreferrer" style={styles.affiliateBar}>
-        <span style={styles.affiliateBarLeft}><img src="https://tastytrade.com/favicon.ico" alt="tastytrade" style={{ width: "18px", height: "18px", borderRadius: "4px", flexShrink: 0 }} /><span><strong>Trade on tastytrade</strong> — built for options traders &amp; multi-leg setups</span></span>
+        <span style={styles.affiliateBarLeft}><span style={{ fontSize: "18px", lineHeight: 1, flexShrink: 0 }}>🍒</span><span><strong>Trade on tastytrade</strong> — built for options traders &amp; multi-leg setups</span></span>
         <span style={styles.affiliateCta}>Open Account →</span>
       </a>
     </div>
@@ -294,7 +294,7 @@ function DiagonalCard({ spread, currentPrice, onTutorial }: { spread: LiveDiagon
       </div>
       <div style={styles.brokerLabel}>Recommended brokerage for this setup</div>
       <a href="https://tastytrade.com/welcome/?referralCode=WZQ7CK6HGE" target="_blank" rel="noopener noreferrer" style={styles.affiliateBar}>
-        <span style={styles.affiliateBarLeft}><img src="https://tastytrade.com/favicon.ico" alt="tastytrade" style={{ width: "18px", height: "18px", borderRadius: "4px", flexShrink: 0 }} /><span><strong>Trade on tastytrade</strong> — built for options traders &amp; multi-leg setups</span></span>
+        <span style={styles.affiliateBarLeft}><span style={{ fontSize: "18px", lineHeight: 1, flexShrink: 0 }}>🍒</span><span><strong>Trade on tastytrade</strong> — built for options traders &amp; multi-leg setups</span></span>
         <span style={styles.affiliateCta}>Open Account →</span>
       </a>
     </div>
@@ -323,7 +323,7 @@ function IronCondorCard({ spread, currentPrice, onTutorial }: { spread: LiveIron
       <StatBar pop={spread.pop} pop50={spread.pop50} riskReward={spread.riskReward} />
       <div style={styles.brokerLabel}>Recommended brokerage for this setup</div>
       <a href="https://tastytrade.com/welcome/?referralCode=WZQ7CK6HGE" target="_blank" rel="noopener noreferrer" style={styles.affiliateBar}>
-        <span style={styles.affiliateBarLeft}><img src="https://tastytrade.com/favicon.ico" alt="tastytrade" style={{ width: "18px", height: "18px", borderRadius: "4px", flexShrink: 0 }} /><span><strong>Trade on tastytrade</strong> — built for options traders &amp; multi-leg setups</span></span>
+        <span style={styles.affiliateBarLeft}><span style={{ fontSize: "18px", lineHeight: 1, flexShrink: 0 }}>🍒</span><span><strong>Trade on tastytrade</strong> — built for options traders &amp; multi-leg setups</span></span>
         <span style={styles.affiliateCta}>Open Account →</span>
       </a>
     </div>

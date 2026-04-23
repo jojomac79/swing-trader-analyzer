@@ -489,10 +489,10 @@ function inferBiasSignal(tech: TechData | null): BiasSignal {
   let bear = 0;
 
   if (tech.rsi14 !== null) {
-    if (tech.rsi14 >= 60 && tech.rsi14 < 75) bull += 1.25;
-    else if (tech.rsi14 <= 40 && tech.rsi14 > 25) bear += 1.25;
-    else if (tech.rsi14 >= 75) bear += 0.75;  // overbought — lean against
-    else if (tech.rsi14 <= 25) bull += 0.75;  // oversold bounce
+    if (tech.rsi14 >= 58 && tech.rsi14 < 78) bull += 1.35;
+    else if (tech.rsi14 <= 42 && tech.rsi14 > 22) bear += 1.35;
+    else if (tech.rsi14 >= 78) bull += 0.35;
+    else if (tech.rsi14 <= 22) bear += 0.35;
   }
 
   if (tech.macdLine !== null && tech.macdSignal !== null) {
@@ -509,14 +509,14 @@ function inferBiasSignal(tech: TechData | null): BiasSignal {
   if (tech.priceVsEma200 === "above") bull += 1.25;
   else if (tech.priceVsEma200 === "below") bear += 1.25;
 
-  if (tech.volumeRatio !== null && tech.volumeRatio >= 1.4) {
-    if (bull > bear) bull += 0.75;
-    else if (bear > bull) bear += 0.75;
+  if (tech.volumeRatio !== null && tech.volumeRatio >= 1.25) {
+    if (bull > bear) bull += 0.9;
+    else if (bear > bull) bear += 0.9;
   }
 
   const diff = bull - bear;
   const absDiff = Math.abs(diff);
-  const confidence = clamp(5 + absDiff * 1.3, 1, 10);
+  const confidence = clamp(5.2 + absDiff * 1.45, 1, 10);
 
   const trendVotes = [tech.priceVsEma20, tech.priceVsEma50, tech.priceVsEma200].filter(x => x === "above" || x === "below");
   const alignedAbove = trendVotes.filter(x => x === "above").length;
@@ -527,8 +527,8 @@ function inferBiasSignal(tech: TechData | null): BiasSignal {
   else if (Math.max(alignedAbove, alignedBelow) >= 2) trendStrength = "moderate";
 
   let bias: BiasSignal["bias"] = "Neutral";
-  if (diff >= 1.25) bias = "Bullish";
-  else if (diff <= -1.25) bias = "Bearish";
+  if (diff >= 0.9) bias = "Bullish";
+  else if (diff <= -0.9) bias = "Bearish";
 
   let momentum: BiasSignal["momentum"] = "mixed";
   if (tech.macdLine !== null && tech.macdSignal !== null) {
@@ -538,9 +538,9 @@ function inferBiasSignal(tech: TechData | null): BiasSignal {
 
   // ── STEP 1: Classify the market regime ──────────────────────────────────────
   let regime: MarketRegime;
-  if (confidence >= 7.5 && trendStrength === "strong") {
+  if (confidence >= 6.8 && (trendStrength === "strong" || (trendStrength === "moderate" && momentum !== "mixed"))) {
     regime = "trend";
-  } else if (confidence >= 5 && confidence < 7.5) {
+  } else if (confidence >= 4.8) {
     regime = "moderate";
   } else {
     regime = "neutral";
@@ -890,11 +890,11 @@ ${gatedSection}
 ${buildStrategySection({ callDebit: liveCallDebit, putDebit: livePutDebit, bullPut: liveBullPut, bearCall: liveBearCall, callDiagonal: liveCallDiagonal, putDiagonal: livePutDiagonal, ironCondor: liveIronCondor, longCall: liveLongCall, longPut: liveLongPut })}
 
 STRATEGY SELECTION RULES:
-- The GATED STRATEGY SHORTLIST above is your menu. Pick from it — do not override the regime gate unless the shortlist is empty.
-- The #1 ranked strategy in the shortlist is strongly preferred. Only pick #2 or lower with a specific reason.
-- In TREND regime: debit spreads or diagonals only. Credit spreads are not appropriate here.
-- In MODERATE regime: credit spreads dominate. Diagonals are only a fallback if no credit spread exists.
-- In NEUTRAL regime: iron condor first. Credit spreads only if no condor is available.
+- The GATED STRATEGY SHORTLIST above is your menu. Pick from it unless a lower-ranked choice is clearly better supported by the technicals.
+- The #1 ranked strategy is preferred, but you may pick another listed candidate if the technical picture strongly supports it.
+- In TREND regime: favor debit spreads or diagonals.
+- In MODERATE regime: credit spreads are preferred, but keep the directional bias Bullish or Bearish when the technicals lean that way.
+- In NEUTRAL regime: iron condor first. Credit spreads only if no condor is available or the range is slightly skewed.
 - Do not invent live pricing for strategies not shown in the live candidates section.
 - No Trade if the shortlist is empty or no live candidate exists.
 - Use headlines as context only.
