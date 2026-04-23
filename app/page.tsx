@@ -512,6 +512,9 @@ function TradeFiltersCard({ filters }: { filters: TradeFilters }) {
         <div><strong>Max Loss/Profit</strong><br />{filters.maxLossToProfitRatio}x</div>
         <div><strong>Short Delta Band</strong><br />{filters.preferredShortDeltaMin.toFixed(2)} - {filters.preferredShortDeltaMax.toFixed(2)}</div>
       </div>
+      <div style={styles.filterTranslation}>
+        <strong>Translation:</strong> We only show trades where the math makes sense — good payouts, controlled risk, and a strong chance of winning. No garbage setups.
+      </div>
     </div>
   );
 }
@@ -1136,6 +1139,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   metaCard: { background: "#1e293b", border: "1px solid #334155", borderRadius: "14px", padding: "16px", marginBottom: "16px", display: "flex", gap: "20px", flexWrap: "wrap" },
   filterCard: { background: "#1e293b", border: "1px solid #334155", borderRadius: "14px", padding: "16px", marginBottom: "16px" },
   filterGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "10px", color: "#cbd5e1", fontSize: "0.9rem" },
+  filterTranslation: { marginTop: "12px", padding: "10px 12px", background: "#0f172a", border: "1px solid #334155", borderRadius: "10px", color: "#cbd5e1", fontSize: "0.86rem", lineHeight: 1.6 },
   techCard: { background: "#1e293b", border: "1px solid #334155", borderRadius: "14px", padding: "16px", marginBottom: "16px" },
   techGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: "10px", marginTop: "12px" },
   techItem: { display: "flex", flexDirection: "column" as const, gap: "2px", background: "#0f172a", borderRadius: "8px", padding: "10px" },
