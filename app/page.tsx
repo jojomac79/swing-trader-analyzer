@@ -965,11 +965,13 @@ export default function Home() {
               </div>
             ) : status !== "loading" && (
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                <div style={{ fontSize: "0.8rem", color: "#64748b" }}>3 free analyses/day with Google</div>
                 <button onClick={() => signIn("google", { callbackUrl: window.location.href })} style={styles.googleButton}>
                   <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" style={styles.googleIcon} />
-                  Sign in with Google
+                  Unlock your free analysis → Continue with Google
                 </button>
+                <div style={{ fontSize: "0.8rem", color: "#94a3b8", lineHeight: 1.35 }}>
+                  3 free analyses/day • No spam. Never had it, never will.
+                </div>
               </div>
             )}
           </div>
@@ -985,11 +987,14 @@ export default function Home() {
         {showGoogleGate && (
           <div style={styles.gateCard}>
             <h2 style={styles.cardTitle}>Sign in to use the analyzer</h2>
-            <p style={styles.gateText}>A free Google account gets you 3 analyses per day.</p>
+            <p style={styles.gateText}>Unlock your free trade breakdown with one click.</p>
             <button onClick={() => signIn("google", { callbackUrl: window.location.href })} style={styles.googleButton}>
               <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" style={styles.googleIcon} />
-              Continue with Google
+              Unlock your free analysis → Continue with Google
             </button>
+            <div style={{ fontSize: "0.8rem", color: "#94a3b8", lineHeight: 1.35 }}>
+              3 free analyses/day • No spam. Never had it, never will.
+            </div>
           </div>
         )}
 
@@ -1269,13 +1274,13 @@ const styles: { [key: string]: CSSProperties } = {
   title: { margin: 0, fontSize: "2.1rem", lineHeight: 1.1, color: "#ffffff" },
   subtitle: { marginTop: "10px", marginBottom: 0, color: "#cbd5e1", lineHeight: 1.5, maxWidth: "640px" },
   marketStatus: { marginTop: "10px", fontSize: "0.95rem", fontWeight: 500, color: "#94a3b8" },
-  statusCard: { background: "#111827", border: "1px solid #334155", borderRadius: "14px", padding: "14px 16px", minWidth: "260px", display: "grid", gap: "8px", boxShadow: "0 10px 30px rgba(0,0,0,0.18)" },
+  statusCard: { background: "#111827", border: "1px solid #334155", borderRadius: "14px", padding: "14px 16px", minWidth: "300px", display: "grid", gap: "8px", boxShadow: "0 10px 30px rgba(0,0,0,0.18)" },
   manageSubButton: { padding: "8px 12px", borderRadius: "8px", border: "1px solid #475569", background: "transparent", color: "#94a3b8", cursor: "pointer", fontSize: "0.85rem", justifySelf: "start" as const },
   signOutButton: { padding: "8px 12px", borderRadius: "8px", border: "1px solid #334155", background: "transparent", color: "#64748b", cursor: "pointer", fontSize: "0.85rem", justifySelf: "start" as const },
   searchRow: { display: "flex", gap: "10px", marginBottom: "20px", flexWrap: "wrap" },
   input: { flex: 1, minWidth: "240px", padding: "12px 14px", fontSize: "1rem", border: "1px solid #334155", borderRadius: "10px", background: "#1e293b", color: "#fff", outline: "none" },
   button: { padding: "12px 18px", borderRadius: "10px", border: "none", background: "#22c55e", color: "#04130a", cursor: "pointer", fontSize: "1rem", fontWeight: 700, minWidth: "120px" },
-  googleButton: { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "10px", alignSelf: "flex-start", padding: "12px 18px", borderRadius: "10px", border: "1px solid #cbd5e1", background: "#ffffff", color: "#111827", cursor: "pointer", fontSize: "0.95rem", fontWeight: 700 },
+  googleButton: { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "10px", alignSelf: "flex-start", padding: "12px 18px", borderRadius: "10px", border: "1px solid #cbd5e1", background: "#ffffff", color: "#111827", cursor: "pointer", fontSize: "0.95rem", fontWeight: 700, lineHeight: 1.25, textAlign: "center" as const },
   googleIcon: { width: "18px", height: "18px", display: "block", flexShrink: 0 },
   upgradeButton: { padding: "12px 18px", borderRadius: "10px", border: "none", background: "#f59e0b", color: "#111827", cursor: "pointer", fontSize: "0.95rem", fontWeight: 700 },
   copyButton: { padding: "8px 12px", borderRadius: "8px", border: "1px solid #475569", background: "#0f172a", color: "#e5e7eb", cursor: "pointer", fontSize: "0.9rem", fontWeight: 600 },
