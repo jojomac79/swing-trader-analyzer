@@ -1266,9 +1266,30 @@ export default function Home() {
               <label style={styles.gradeLegFieldLabel}>Notes (optional)</label>
               <input type="text" placeholder="e.g. Playing the bounce off EMA50, holding through earnings" value={gradeNotes} onChange={e => setGradeNotes(e.target.value)} style={{ ...styles.gradeInput, width: "100%" }} />
             </div>
-            <button onClick={gradeMyTrade} disabled={gradeLoading || !gradeTicker.trim() || status === "loading"} style={{ ...styles.button, marginTop: "12px", width: "100%" }}>
-              {gradeLoading ? "Grading your trade..." : "Grade My Trade"}
-            </button>
+            <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
+              <button onClick={gradeMyTrade} disabled={gradeLoading || !gradeTicker.trim() || status === "loading"} style={{ ...styles.button, flex: 1 }}>
+                {gradeLoading ? "Grading your trade..." : "Grade My Trade"}
+              </button>
+              {(gradeResult || gradeLegs.some(l => l.strike || l.expiration || l.premium) || gradeTicker) && (
+                <button
+                  onClick={() => {
+                    setGradeTicker("");
+                    setGradeLegs([{ action: "buy", type: "call", strike: "", expiration: "", premium: "" }]);
+                    setGradeNotes("");
+                    setGradeResult("");
+                    setGradeMeta(null);
+                    setGradeError("");
+                    setExpirations([]);
+                    setStrikes([]);
+                    setLoadedExpiration("");
+                    setExpSymbol("");
+                  }}
+                  style={{ padding: "12px 18px", borderRadius: "10px", border: "1px solid #334155", background: "transparent", color: "#64748b", cursor: "pointer", fontSize: "0.95rem", fontWeight: 600, whiteSpace: "nowrap" as const }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
           </div>
         )}
 
