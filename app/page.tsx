@@ -731,6 +731,42 @@ export default function Home() {
   const [showTutorial, setShowTutorial] = useState(false);
   const [showFullAnalysis, setShowFullAnalysis] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+
+  // ─── Tab system ───────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<"analyze" | "grade">("analyze");
+
+  // ─── Grade My Trade state ─────────────────────────────────────────────────
+  type TradeLeg = { action: "buy" | "sell"; type: "call" | "put" | "share"; strike: string; expiration: string; premium: string; };
+  const emptyLeg = (): TradeLeg => ({ action: "buy", type: "call", strike: "", expiration: "", premium: "" });
+  const [gradeTicker, setGradeTicker] = useState("");
+  const [gradeLegs, setGradeLegs] = useState<TradeLeg[]>([emptyLeg()]);
+  const [gradeNotes, setGradeNotes] = useState("");
+  const [gradeResult, setGradeResult] = useState("");
+  const [gradeMeta, setGradeMeta] = useState<{ symbol?: string; currentPrice?: string; nextEarnings?: string; tradeType?: string; recentHeadlines?: { headline: string; source: string; url: string }[] } | null>(null);
+  const [gradeLoading, setGradeLoading] = useState(false);
+  const [gradeError, setGradeError] = useState("");
+  const [expirations, setExpirations] = useState<string[]>([]);
+  const [expLoading, setExpLoading] = useState(false);
+  const [expSymbol, setExpSymbol] = useState(""); // which ticker we already loaded for
+
+  const loadExpirations = async (tickerVal: string) => {
+    const t = tickerVal.trim();
+    if (!t || t === expSymbol) return;
+    if (!isSignedIn) return;
+    setExpLoading(true);
+    setExpirations([]);
+    try {
+      const res = await fetch(`/api/expirations?ticker=${encodeURIComponent(t)}`);
+      const data = await res.json();
+      if (res.ok && data.expirations) {
+        setExpirations(data.expirations);
+        setExpSymbol(data.symbol ?? t);
+        // pre-fill first leg expiration if empty
+        setGradeLegs(prev => prev.map((leg, i) => i === 0 && !leg.expiration ? { ...leg, expiration: data.expirations[0] ?? "" } : leg));
+      }
+    } catch { /* fail silently */ }
+    finally { setExpLoading(false); }
+  };
   const [upgradeSheetOffset, setUpgradeSheetOffset] = useState(0);
   const upgradeSheetStartY = useRef<number | null>(null);
 
@@ -836,6 +872,44 @@ export default function Home() {
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally { setLoading(false); }
+  };
+
+  const gradeMyTrade = async () => {
+    if (!gradeTicker.trim()) { setGradeError("Enter a ticker or company name."); return; }
+    if (!isSignedIn) { setShowGoogleGate(true); return; }
+    if (!disclaimerAccepted) { setShowDisclaimer(true); return; }
+    if (showPaywall && !isPremium) { setGradeError("Daily limit reached. Upgrade to Pro for unlimited access."); return; }
+    const hasValidLeg = gradeLegs.some(l => l.strike || l.expiration || l.premium);
+    if (!hasValidLeg && gradeLegs[0].type !== "share") { setGradeError("Fill in at least one leg with a strike or expiration."); return; }
+    setGradeLoading(true); setGradeError(""); setGradeResult(""); setGradeMeta(null);
+    try {
+      const legsPayload = gradeLegs.map(l => ({
+        action: l.action,
+        type: l.type,
+        strike: l.strike ? parseFloat(l.strike) : null,
+        expiration: l.expiration || null,
+        premium: l.premium ? parseFloat(l.premium) : null,
+      }));
+      const res = await fetch("/api/grade", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticker: gradeTicker, legs: legsPayload, notes: gradeNotes }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (res.status === 403) {
+          if (data.limitType === "anon_limit") { setShowGoogleGate(true); return; }
+          if (data.limitType === "disclaimer_required") { setShowDisclaimer(true); return; }
+          setShowPaywall(true); return;
+        }
+        if (res.status === 401) { setShowGoogleGate(true); return; }
+        throw new Error(data.error || "Failed to grade trade.");
+      }
+      setGradeResult(data.result ?? "");
+      setGradeMeta(data.meta ?? null);
+    } catch (err: unknown) {
+      setGradeError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally { setGradeLoading(false); }
   };
 
   const handleManageSubscription = async () => {
@@ -947,8 +1021,26 @@ export default function Home() {
 
         <div style={styles.heroRow}>
           <div style={styles.heroText}>
-            <h1 style={styles.title}>Swing Trade Analyzer</h1>
-            <p style={styles.subtitle}>Enter a ticker or company name. Get trade breakdowns with real-time options data, earnings context, and AI-selected strategy.</p>
+            {/* ── Tab switcher ── */}
+            <div style={styles.tabRow}>
+              <button
+                onClick={() => { setActiveTab("analyze"); setError(""); setGradeError(""); }}
+                style={{ ...styles.tabBtn, ...(activeTab === "analyze" ? styles.tabBtnActive : {}) }}
+              >
+                📈 Swing Trade Analyzer
+              </button>
+              <button
+                onClick={() => { setActiveTab("grade"); setError(""); setGradeError(""); }}
+                style={{ ...styles.tabBtn, ...(activeTab === "grade" ? styles.tabBtnActiveGrade : {}) }}
+              >
+                🎯 Grade My Trade
+              </button>
+            </div>
+            <p style={styles.subtitle}>
+              {activeTab === "analyze"
+                ? "Enter a ticker or company name. Get trade breakdowns with real-time options data, earnings context, and AI-selected strategy."
+                : "Enter your trade idea. Get an honest AI grade based on current technicals, news, and market conditions."}
+            </p>
             <div style={{ ...styles.marketStatus, color: marketStatus.color }}>{marketStatus.label}</div>
           </div>
           <div style={styles.statusCard}>
@@ -977,17 +1069,126 @@ export default function Home() {
           </div>
         </div>
 
-        <form onSubmit={(e) => { e.preventDefault(); analyzeStock(); }} style={styles.searchRow}>
-          <input type="text" placeholder="Ticker or company (e.g. AAPL or Netflix)" value={ticker} onChange={(e) => setTicker(e.target.value)} style={styles.input} autoFocus disabled={loading || status === "loading"} />
-          <button type="submit" disabled={loading || !ticker.trim() || status === "loading"} style={styles.button}>
-            {loading ? "Scanning Options Chain..." : "Analyze"}
-          </button>
-        </form>
+        {/* ── Analyzer tab ── */}
+        {activeTab === "analyze" && (
+          <form onSubmit={(e) => { e.preventDefault(); analyzeStock(); }} style={styles.searchRow}>
+            <input type="text" placeholder="Ticker or company (e.g. AAPL or Netflix)" value={ticker} onChange={(e) => setTicker(e.target.value)} style={styles.input} autoFocus disabled={loading || status === "loading"} />
+            <button type="submit" disabled={loading || !ticker.trim() || status === "loading"} style={styles.button}>
+              {loading ? "Scanning Options Chain..." : "Analyze"}
+            </button>
+          </form>
+        )}
+
+        {/* ── Grade My Trade tab ── */}
+        {activeTab === "grade" && (
+          <div style={styles.gradeForm}>
+            {/* Ticker row with Load Expirations */}
+            <div style={{ display: "flex", gap: "10px", marginBottom: "12px", flexWrap: "wrap" as const }}>
+              <input
+                type="text"
+                placeholder="Ticker or company (e.g. AAPL or Tesla)"
+                value={gradeTicker}
+                onChange={(e) => { setGradeTicker(e.target.value); setExpSymbol(""); setExpirations([]); }}
+                onBlur={() => loadExpirations(gradeTicker)}
+                style={{ ...styles.input, flex: 1 }}
+                disabled={gradeLoading || status === "loading"}
+              />
+              <button
+                onClick={() => loadExpirations(gradeTicker)}
+                disabled={!gradeTicker.trim() || expLoading || !isSignedIn}
+                style={{ ...styles.button, background: expLoading ? "#1e293b" : "#6366f1", color: "#fff", minWidth: "unset", padding: "12px 16px", fontSize: "0.9rem" }}
+              >
+                {expLoading ? "Loading..." : expirations.length ? `${expirations.length} dates ✓` : "Load Dates"}
+              </button>
+            </div>
+            {expirations.length === 0 && gradeTicker.trim() && !expLoading && (
+              <div style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: "10px" }}>
+                Enter a ticker and click <strong style={{ color: "#6366f1" }}>Load Dates</strong> to fetch real expiration dates from the options market.
+              </div>
+            )}
+            <div style={styles.gradeLegsWrap}>
+              {gradeLegs.map((leg, idx) => (
+                <div key={idx} style={styles.gradeLegCard}>
+                  <div style={styles.gradeLegHeader}>
+                    <span style={styles.gradeLegLabel}>Leg {idx + 1}</span>
+                    {idx > 0 && (
+                      <button onClick={() => setGradeLegs(prev => prev.filter((_, i) => i !== idx))} style={styles.gradeLegRemove}>✕ Remove</button>
+                    )}
+                  </div>
+                  <div style={styles.gradeLegRow}>
+                    <div style={styles.gradeLegField}>
+                      <label style={styles.gradeLegFieldLabel}>Action</label>
+                      <select value={leg.action} onChange={e => setGradeLegs(prev => prev.map((l, i) => i === idx ? { ...l, action: e.target.value as "buy" | "sell" } : l))} style={styles.gradeSelect}>
+                        <option value="buy">Buy</option>
+                        <option value="sell">Sell</option>
+                      </select>
+                    </div>
+                    <div style={styles.gradeLegField}>
+                      <label style={styles.gradeLegFieldLabel}>Type</label>
+                      <select value={leg.type} onChange={e => setGradeLegs(prev => prev.map((l, i) => i === idx ? { ...l, type: e.target.value as "call" | "put" | "share" } : l))} style={styles.gradeSelect}>
+                        <option value="call">Call</option>
+                        <option value="put">Put</option>
+                        <option value="share">Share</option>
+                      </select>
+                    </div>
+                    {leg.type !== "share" && (
+                      <>
+                        <div style={styles.gradeLegField}>
+                          <label style={styles.gradeLegFieldLabel}>Strike</label>
+                          <input type="number" placeholder="e.g. 150" value={leg.strike} onChange={e => setGradeLegs(prev => prev.map((l, i) => i === idx ? { ...l, strike: e.target.value } : l))} style={styles.gradeInput} />
+                        </div>
+                        <div style={styles.gradeLegField}>
+                          <label style={styles.gradeLegFieldLabel}>Expiration</label>
+                          {expirations.length > 0 ? (
+                            <select
+                              value={leg.expiration}
+                              onChange={e => setGradeLegs(prev => prev.map((l, i) => i === idx ? { ...l, expiration: e.target.value } : l))}
+                              style={styles.gradeSelect}
+                            >
+                              <option value="">Select date...</option>
+                              {expirations.map(d => (
+                                <option key={d} value={d}>{d}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              type="text"
+                              placeholder="Load dates first ↑"
+                              value={leg.expiration}
+                              onChange={e => setGradeLegs(prev => prev.map((l, i) => i === idx ? { ...l, expiration: e.target.value } : l))}
+                              style={{ ...styles.gradeInput, color: "#64748b" }}
+                            />
+                          )}
+                        </div>
+                        <div style={styles.gradeLegField}>
+                          <label style={styles.gradeLegFieldLabel}>Premium (optional)</label>
+                          <input type="number" step="0.01" placeholder="e.g. 2.50" value={leg.premium} onChange={e => setGradeLegs(prev => prev.map((l, i) => i === idx ? { ...l, premium: e.target.value } : l))} style={styles.gradeInput} />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {gradeLegs.length < 4 && (
+                <button onClick={() => setGradeLegs(prev => [...prev, { action: "buy", type: "call", strike: "", expiration: expirations[0] ?? "", premium: "" }])} style={styles.gradeAddLegBtn}>
+                  + Add a Leg
+                </button>
+              )}
+            </div>
+            <div style={styles.gradeLegField}>
+              <label style={styles.gradeLegFieldLabel}>Notes (optional)</label>
+              <input type="text" placeholder="e.g. Playing the bounce off EMA50, holding through earnings" value={gradeNotes} onChange={e => setGradeNotes(e.target.value)} style={{ ...styles.gradeInput, width: "100%" }} />
+            </div>
+            <button onClick={gradeMyTrade} disabled={gradeLoading || !gradeTicker.trim() || status === "loading"} style={{ ...styles.button, marginTop: "12px", width: "100%" }}>
+              {gradeLoading ? "Grading your trade..." : "Grade My Trade"}
+            </button>
+          </div>
+        )}
 
         {showGoogleGate && (
           <div style={styles.gateCard}>
             <h2 style={styles.cardTitle}>Sign in to use the analyzer</h2>
-            <p style={styles.gateText}>Unlock your free trade breakdown with one click.</p>
+            <p style={styles.gateText}>Unlock your free trade breakdowns with one click.</p>
             <button onClick={() => signIn("google", { callbackUrl: window.location.href })} style={styles.googleButton}>
               <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" style={styles.googleIcon} />
               Unlock your free analysis → Continue with Google
@@ -1073,7 +1274,8 @@ export default function Home() {
           </div>
         )}
 
-        {error && (!showPaywall || paywallAttemptedAgain) && <div style={styles.error}>{error}</div>}
+        {error && (!showPaywall || paywallAttemptedAgain) && activeTab === "analyze" && <div style={styles.error}>{error}</div>}
+        {gradeError && activeTab === "grade" && <div style={styles.error}>{gradeError}</div>}
 
         {meta && (
           <div style={styles.metaCard}>
@@ -1232,6 +1434,50 @@ export default function Home() {
           </div>
         )}
 
+        {/* ── Grade My Trade results ── */}
+        {activeTab === "grade" && gradeMeta && (
+          <div style={styles.metaCard}>
+            <div><strong>Symbol:</strong> {gradeMeta.symbol}</div>
+            {gradeMeta.resolvedDisplayName && <div><strong>Company:</strong> {gradeMeta.resolvedDisplayName}</div>}
+            <div><strong>Price:</strong> ${gradeMeta.currentPrice}</div>
+            <div><strong>Next Earnings:</strong> {gradeMeta.nextEarnings}</div>
+            {gradeMeta.tradeType && <div><strong>Trade Type:</strong> {gradeMeta.tradeType}</div>}
+          </div>
+        )}
+
+        {activeTab === "grade" && gradeResult && (() => {
+          const gradeMatch = gradeResult.match(/Grade:\s*([A-F][+-]?)/i);
+          const grade = gradeMatch?.[1]?.toUpperCase() ?? null;
+          const gradeColor = grade?.startsWith("A") ? "#22c55e" : grade?.startsWith("B") ? "#86efac" : grade?.startsWith("C") ? "#f59e0b" : grade?.startsWith("D") ? "#f97316" : "#ef4444";
+          return (
+            <div style={{ ...styles.resultCard, marginBottom: "16px" }}>
+              <div style={styles.resultHeader}>
+                <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+                  {grade && (
+                    <div style={{ fontSize: "3rem", fontWeight: 900, color: gradeColor, lineHeight: 1, minWidth: "52px", textAlign: "center" as const }}>{grade}</div>
+                  )}
+                  <h2 style={styles.cardTitle}>Trade Grade</h2>
+                </div>
+              </div>
+              <pre style={styles.result}>{gradeResult}</pre>
+            </div>
+          );
+        })()}
+
+        {activeTab === "grade" && gradeMeta?.recentHeadlines && gradeMeta.recentHeadlines.length > 0 && (
+          <div style={styles.headlinesCard}>
+            <h2 style={styles.cardTitle}>Recent Headlines</h2>
+            <div style={styles.headlinesList}>
+              {gradeMeta.recentHeadlines.map((item, index) => (
+                <a key={`${item.url}-${index}`} href={item.url} target="_blank" rel="noopener noreferrer" style={styles.headlineLink}>
+                  <div style={styles.headlineTitle}>{item.headline}</div>
+                  <div style={styles.headlineSource}>{item.source}</div>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div style={styles.footer}>
           <button onClick={() => setShowDisclaimer(true)} style={styles.disclaimerLink}>View Disclaimer</button>
           <span style={styles.footerDivider}>·</span>
@@ -1246,6 +1492,24 @@ export default function Home() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles: { [key: string]: CSSProperties } = {
   main: { minHeight: "100vh", padding: "40px 16px", color: "#e5e7eb", background: "#0f172a" },
+  // ─── Tab styles ─────────────────────────────────────────────────────────────
+  tabRow: { display: "flex", gap: "8px", marginBottom: "12px", flexWrap: "wrap" as const },
+  tabBtn: { padding: "10px 18px", borderRadius: "10px", border: "1px solid #334155", background: "#1e293b", color: "#94a3b8", cursor: "pointer", fontSize: "1rem", fontWeight: 700, transition: "all 0.15s" },
+  tabBtnActive: { background: "#22c55e", color: "#04130a", border: "1px solid #22c55e" },
+  tabBtnActiveGrade: { background: "#6366f1", color: "#ffffff", border: "1px solid #6366f1" },
+  // ─── Grade My Trade form styles ──────────────────────────────────────────────
+  gradeForm: { marginBottom: "20px" },
+  gradeLegsWrap: { display: "flex", flexDirection: "column" as const, gap: "10px", marginBottom: "12px" },
+  gradeLegCard: { background: "#1e293b", border: "1px solid #334155", borderRadius: "12px", padding: "14px" },
+  gradeLegHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" },
+  gradeLegLabel: { fontSize: "0.75rem", fontWeight: 800, color: "#64748b", textTransform: "uppercase" as const, letterSpacing: "0.08em" },
+  gradeLegRemove: { background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, padding: "2px 6px" },
+  gradeLegRow: { display: "flex", gap: "10px", flexWrap: "wrap" as const },
+  gradeLegField: { display: "flex", flexDirection: "column" as const, gap: "4px", minWidth: "100px", flex: 1 },
+  gradeLegFieldLabel: { fontSize: "0.7rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase" as const },
+  gradeSelect: { padding: "8px 10px", borderRadius: "8px", border: "1px solid #334155", background: "#0f172a", color: "#e5e7eb", fontSize: "0.92rem", cursor: "pointer", outline: "none" },
+  gradeInput: { padding: "8px 10px", borderRadius: "8px", border: "1px solid #334155", background: "#0f172a", color: "#e5e7eb", fontSize: "0.92rem", outline: "none" },
+  gradeAddLegBtn: { padding: "10px 14px", borderRadius: "10px", border: "1px dashed #334155", background: "transparent", color: "#64748b", cursor: "pointer", fontSize: "0.88rem", fontWeight: 600, textAlign: "center" as const },
   summaryCard: { background: "#111827", border: "1px solid #334155", borderRadius: "14px", padding: "16px 18px", marginBottom: "16px", boxShadow: "0 4px 20px rgba(0,0,0,0.3)" },
   summaryHeader: { display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" },
   summaryIcon: { fontSize: "1rem" },
