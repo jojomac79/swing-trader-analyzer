@@ -921,7 +921,7 @@ export default function Home() {
     if (!gradeTicker.trim()) { setGradeError("Enter a ticker or company name."); return; }
     if (!isSignedIn) { setShowGoogleGate(true); return; }
     if (!disclaimerAccepted) { setShowDisclaimer(true); return; }
-    if (showPaywall && !isPremium) { setGradeError("Daily limit reached. Upgrade to Pro for unlimited access."); return; }
+    if (showPaywall && !isPremium) { setShowUpgradeModal(true); return; }
     const hasValidLeg = gradeLegs.some(l => l.strike || l.expiration || l.premium);
     if (!hasValidLeg && gradeLegs[0].type !== "share") { setGradeError("Fill in at least one leg with a strike or expiration."); return; }
     setGradeLoading(true); setGradeError(""); setGradeResult(""); setGradeMeta(null);
@@ -943,7 +943,7 @@ export default function Home() {
         if (res.status === 403) {
           if (data.limitType === "anon_limit") { setShowGoogleGate(true); return; }
           if (data.limitType === "disclaimer_required") { setShowDisclaimer(true); return; }
-          setShowPaywall(true); return;
+          setShowUpgradeModal(true); return;
         }
         if (res.status === 401) { setShowGoogleGate(true); return; }
         throw new Error(data.error || "Failed to grade trade.");
@@ -1076,7 +1076,7 @@ export default function Home() {
                 onClick={() => { setActiveTab("grade"); setError(""); setGradeError(""); }}
                 style={{ ...styles.tabBtn, ...(activeTab === "grade" ? styles.tabBtnActiveGrade : {}) }}
               >
-                🎯 Grade My Trade
+                🎯 Grade My Trade <span style={{ fontSize: "0.6rem", fontWeight: 800, background: "#f59e0b", color: "#111827", padding: "2px 5px", borderRadius: "6px", marginLeft: "6px", verticalAlign: "middle" }}>NEW</span>
               </button>
             </div>
             <p style={styles.subtitle}>
@@ -1133,20 +1133,21 @@ export default function Home() {
                 value={gradeTicker}
                 onChange={(e) => { setGradeTicker(e.target.value); setExpSymbol(""); setExpirations([]); }}
                 onBlur={() => loadExpirations(gradeTicker, false)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); loadExpirations(gradeTicker, true); } }}
                 style={{ ...styles.input, flex: 1 }}
                 disabled={gradeLoading || status === "loading"}
               />
               <button
                 onClick={() => loadExpirations(gradeTicker, true)}
                 disabled={!gradeTicker.trim() || expLoading || !isSignedIn}
-                style={{ ...styles.button, background: expLoading ? "#1e293b" : "#6366f1", color: "#fff", minWidth: "unset", padding: "12px 16px", fontSize: "0.9rem" }}
+                style={{ ...styles.button, background: expirations.length ? "#22c55e" : "#6366f1", color: expirations.length ? "#04130a" : "#fff", minWidth: "unset", padding: "12px 20px", fontSize: "0.9rem", fontWeight: 800 }}
               >
-                {expLoading ? "Loading..." : expirations.length ? `${expirations.length} dates ✓` : "Load Dates"}
+                {expLoading ? "Loading..." : expirations.length ? `✓ ${expirations.length} Dates` : "Load Dates →"}
               </button>
             </div>
             {expirations.length === 0 && gradeTicker.trim() && !expLoading && (
               <div style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: "10px" }}>
-                Enter a ticker and click <strong style={{ color: "#6366f1" }}>Load Dates</strong> to fetch real expiration dates from the options market.
+                Enter a ticker and press Enter or click <strong style={{ color: "#6366f1" }}>Load Dates →</strong> to fetch real expiration dates.
               </div>
             )}
             <div style={styles.gradeLegsWrap}>
@@ -1264,10 +1265,21 @@ export default function Home() {
             </div>
             <div style={styles.gradeLegField}>
               <label style={styles.gradeLegFieldLabel}>Notes (optional)</label>
-              <input type="text" placeholder="e.g. Playing the bounce off EMA50, holding through earnings" value={gradeNotes} onChange={e => setGradeNotes(e.target.value)} style={{ ...styles.gradeInput, width: "100%" }} />
+              <input
+                type="text"
+                placeholder="e.g. Playing the bounce off EMA50, holding through earnings"
+                value={gradeNotes}
+                onChange={e => setGradeNotes(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); gradeMyTrade(); } }}
+                style={{ ...styles.gradeInput, width: "100%" }}
+              />
             </div>
             <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
-              <button onClick={gradeMyTrade} disabled={gradeLoading || !gradeTicker.trim() || status === "loading"} style={{ ...styles.button, flex: 1 }}>
+              <button
+                onClick={gradeMyTrade}
+                disabled={gradeLoading || !gradeTicker.trim() || status === "loading"}
+                style={{ ...styles.button, flex: 1 }}
+              >
                 {gradeLoading ? "Grading your trade..." : "Grade My Trade"}
               </button>
               {(gradeResult || gradeLegs.some(l => l.strike || l.expiration || l.premium) || gradeTicker) && (
@@ -1284,9 +1296,9 @@ export default function Home() {
                     setLoadedExpiration("");
                     setExpSymbol("");
                   }}
-                  style={{ padding: "12px 18px", borderRadius: "10px", border: "1px solid #334155", background: "transparent", color: "#64748b", cursor: "pointer", fontSize: "0.95rem", fontWeight: 600, whiteSpace: "nowrap" as const }}
+                  style={{ padding: "12px 20px", borderRadius: "10px", border: "1px solid #ef4444", background: "#1c0a0a", color: "#ef4444", cursor: "pointer", fontSize: "0.95rem", fontWeight: 700, whiteSpace: "nowrap" as const }}
                 >
-                  Clear
+                  ✕ Clear
                 </button>
               )}
             </div>
