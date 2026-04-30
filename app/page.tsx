@@ -742,7 +742,7 @@ export default function Home() {
   const [gradeLegs, setGradeLegs] = useState<TradeLeg[]>([emptyLeg()]);
   const [gradeNotes, setGradeNotes] = useState("");
   const [gradeResult, setGradeResult] = useState("");
-  const [gradeMeta, setGradeMeta] = useState<{ symbol?: string; currentPrice?: string; nextEarnings?: string; tradeType?: string; recentHeadlines?: { headline: string; source: string; url: string }[] } | null>(null);
+  const [gradeMeta, setGradeMeta] = useState<{ symbol?: string; resolvedDisplayName?: string | null; currentPrice?: string; nextEarnings?: string; tradeType?: string; recentHeadlines?: { headline: string; source: string; url: string }[] } | null>(null);
   const [gradeLoading, setGradeLoading] = useState(false);
   const [gradeError, setGradeError] = useState("");
   type OptionStrike = { strike: number; call: { bid: number; ask: number; mid: number } | null; put: { bid: number; ask: number; mid: number } | null };
