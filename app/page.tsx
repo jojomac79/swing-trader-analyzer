@@ -752,28 +752,36 @@ export default function Home() {
   const [expLoading, setExpLoading] = useState(false);
   const [expSymbol, setExpSymbol] = useState(""); // which ticker we already loaded for
 
-  const loadExpirations = async (tickerVal: string) => {
+  const loadExpirations = async (tickerVal: string, force = false) => {
     const t = tickerVal.trim();
-    if (!t || t === expSymbol) return;
-    if (!isSignedIn) return;
+    if (!t) return;
+    if (!force && t === expSymbol) return; // skip on blur if already loaded, but not on button click
+    if (!isSignedIn) { setGradeError("Sign in to load expiration dates."); return; }
     setExpLoading(true);
+    setGradeError("");
     setExpirations([]); setStrikes([]); setLoadedExpiration("");
     try {
       const res = await fetch(`/api/expirations?ticker=${encodeURIComponent(t)}`);
       const data = await res.json();
-      if (res.ok && data.expirations) {
+      if (!res.ok) {
+        setGradeError(data.error ?? `Could not load dates for ${t}.`);
+        return;
+      }
+      if (data.expirations && data.expirations.length > 0) {
         setExpirations(data.expirations);
         setExpSymbol(data.symbol ?? t);
         setStrikes(data.strikes ?? []);
         setLoadedExpiration(data.loadedExpiration ?? data.expirations[0] ?? "");
-        // pre-fill first leg expiration if empty
         setGradeLegs(prev => prev.map((leg, i) => i === 0 && !leg.expiration
           ? { ...leg, expiration: data.loadedExpiration ?? data.expirations[0] ?? "" }
           : leg
         ));
+      } else {
+        setGradeError(`No options found for ${data.symbol ?? t}. Check the ticker.`);
       }
-    } catch { /* fail silently */ }
-    finally { setExpLoading(false); }
+    } catch (err) {
+      setGradeError(err instanceof Error ? err.message : "Failed to load expiration dates.");
+    } finally { setExpLoading(false); }
   };
 
   // When user changes expiration, fetch that expiration's chain for live premiums
@@ -787,7 +795,9 @@ export default function Home() {
         setStrikes(data.strikes);
         setLoadedExpiration(exp);
       }
-    } catch { /* fail silently */ }
+    } catch (err) {
+      console.error("Failed to load chain:", err);
+    }
   };
 
   // Auto-fill premium when strike or type changes
@@ -1122,12 +1132,12 @@ export default function Home() {
                 placeholder="Ticker or company (e.g. AAPL or Tesla)"
                 value={gradeTicker}
                 onChange={(e) => { setGradeTicker(e.target.value); setExpSymbol(""); setExpirations([]); }}
-                onBlur={() => loadExpirations(gradeTicker)}
+                onBlur={() => loadExpirations(gradeTicker, false)}
                 style={{ ...styles.input, flex: 1 }}
                 disabled={gradeLoading || status === "loading"}
               />
               <button
-                onClick={() => loadExpirations(gradeTicker)}
+                onClick={() => loadExpirations(gradeTicker, true)}
                 disabled={!gradeTicker.trim() || expLoading || !isSignedIn}
                 style={{ ...styles.button, background: expLoading ? "#1e293b" : "#6366f1", color: "#fff", minWidth: "unset", padding: "12px 16px", fontSize: "0.9rem" }}
               >
