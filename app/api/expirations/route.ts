@@ -4,6 +4,20 @@ import { auth } from "@/auth";
 type FinnhubSearchResult = { description?: string; displaySymbol?: string; symbol?: string; type?: string };
 type FinnhubSearchResponse = { count?: number; result?: FinnhubSearchResult[] };
 type TradierExpirationsResponse = { expirations?: { date?: string[] | string } };
+type TradierOptionContract = {
+  symbol?: string;
+  option_type?: "put" | "call";
+  strike?: number | string;
+  bid?: number | string | null;
+  ask?: number | string | null;
+};
+type TradierChainResponse = { options?: { option?: TradierOptionContract[] | TradierOptionContract } };
+
+export type OptionStrike = {
+  strike: number;
+  call: { bid: number; ask: number; mid: number } | null;
+  put: { bid: number; ask: number; mid: number } | null;
+};
 
 const TICKER_ALIASES: Record<string, string> = {
   disney: "DIS", "walt disney": "DIS", google: "GOOGL", alphabet: "GOOGL",
@@ -75,9 +89,37 @@ function normalizeExpirations(data: TradierExpirationsResponse): string[] {
   return Array.isArray(raw) ? raw : [raw];
 }
 
+function toNum(v: unknown): number | null {
+  if (typeof v === "number" && isFinite(v)) return v;
+  if (typeof v === "string") { const n = Number(v); return isFinite(n) ? n : null; }
+  return null;
+}
+
+function normalizeChain(data: TradierChainResponse): TradierOptionContract[] {
+  const raw = data.options?.option;
+  if (!raw) return [];
+  return Array.isArray(raw) ? raw : [raw];
+}
+
+function buildStrikeMap(contracts: TradierOptionContract[]): OptionStrike[] {
+  const map = new Map<number, OptionStrike>();
+  for (const c of contracts) {
+    const strike = toNum(c.strike);
+    if (strike === null) continue;
+    const bid = toNum(c.bid) ?? 0;
+    const ask = toNum(c.ask) ?? 0;
+    if (bid < 0 || ask < bid) continue;
+    const mid = Math.round(((bid + ask) / 2) * 100) / 100;
+    if (!map.has(strike)) map.set(strike, { strike, call: null, put: null });
+    const entry = map.get(strike)!;
+    if (c.option_type === "call") entry.call = { bid, ask, mid };
+    if (c.option_type === "put") entry.put = { bid, ask, mid };
+  }
+  return [...map.values()].sort((a, b) => a.strike - b.strike);
+}
+
 export async function GET(req: Request) {
   try {
-    // Auth check — must be signed in
     const session = await auth();
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Sign in required." }, { status: 401 });
@@ -85,6 +127,8 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const ticker = searchParams.get("ticker");
+    const expiration = searchParams.get("expiration"); // optional — fetch chain for this specific exp
+
     if (!ticker) return NextResponse.json({ error: "Ticker required." }, { status: 400 });
 
     const finnhubKey = process.env.FINNHUB_API_KEY;
@@ -96,26 +140,33 @@ export async function GET(req: Request) {
     const symbol = await resolveToSymbol(ticker, finnhubKey);
     const sym = encodeURIComponent(symbol);
 
+    // ── Fetch expirations ─────────────────────────────────────────────────────
     const expRes = await fetch(
       `https://api.tradier.com/v1/markets/options/expirations?symbol=${sym}&includeAllRoots=true`,
-      {
-        headers: { Authorization: `Bearer ${tradierKey}`, Accept: "application/json" },
-        cache: "no-store",
-      }
+      { headers: { Authorization: `Bearer ${tradierKey}`, Accept: "application/json" }, cache: "no-store" }
     );
-
     if (!expRes.ok) {
       return NextResponse.json({ error: `Could not fetch expirations for ${symbol}.` }, { status: 500 });
     }
-
-    const data = (await expRes.json()) as TradierExpirationsResponse;
-    const expirations = normalizeExpirations(data);
-
-    // Only return future dates
     const today = new Date().toISOString().slice(0, 10);
-    const future = expirations.filter((d) => d >= today);
+    const expirations = normalizeExpirations((await expRes.json()) as TradierExpirationsResponse)
+      .filter((d) => d >= today);
 
-    return NextResponse.json({ symbol, expirations: future });
+    // ── Fetch options chain for the requested (or nearest) expiration ─────────
+    const targetExp = expiration ?? expirations[0] ?? null;
+    let strikes: OptionStrike[] = [];
+
+    if (targetExp) {
+      const chainRes = await fetch(
+        `https://api.tradier.com/v1/markets/options/chains?symbol=${sym}&expiration=${encodeURIComponent(targetExp)}&greeks=false`,
+        { headers: { Authorization: `Bearer ${tradierKey}`, Accept: "application/json" }, cache: "no-store" }
+      );
+      if (chainRes.ok) {
+        strikes = buildStrikeMap(normalizeChain((await chainRes.json()) as TradierChainResponse));
+      }
+    }
+
+    return NextResponse.json({ symbol, expirations, strikes, loadedExpiration: targetExp });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Something went wrong." },

@@ -745,7 +745,10 @@ export default function Home() {
   const [gradeMeta, setGradeMeta] = useState<{ symbol?: string; currentPrice?: string; nextEarnings?: string; tradeType?: string; recentHeadlines?: { headline: string; source: string; url: string }[] } | null>(null);
   const [gradeLoading, setGradeLoading] = useState(false);
   const [gradeError, setGradeError] = useState("");
+  type OptionStrike = { strike: number; call: { bid: number; ask: number; mid: number } | null; put: { bid: number; ask: number; mid: number } | null };
   const [expirations, setExpirations] = useState<string[]>([]);
+  const [strikes, setStrikes] = useState<OptionStrike[]>([]);
+  const [loadedExpiration, setLoadedExpiration] = useState<string>("");
   const [expLoading, setExpLoading] = useState(false);
   const [expSymbol, setExpSymbol] = useState(""); // which ticker we already loaded for
 
@@ -754,18 +757,48 @@ export default function Home() {
     if (!t || t === expSymbol) return;
     if (!isSignedIn) return;
     setExpLoading(true);
-    setExpirations([]);
+    setExpirations([]); setStrikes([]); setLoadedExpiration("");
     try {
       const res = await fetch(`/api/expirations?ticker=${encodeURIComponent(t)}`);
       const data = await res.json();
       if (res.ok && data.expirations) {
         setExpirations(data.expirations);
         setExpSymbol(data.symbol ?? t);
+        setStrikes(data.strikes ?? []);
+        setLoadedExpiration(data.loadedExpiration ?? data.expirations[0] ?? "");
         // pre-fill first leg expiration if empty
-        setGradeLegs(prev => prev.map((leg, i) => i === 0 && !leg.expiration ? { ...leg, expiration: data.expirations[0] ?? "" } : leg));
+        setGradeLegs(prev => prev.map((leg, i) => i === 0 && !leg.expiration
+          ? { ...leg, expiration: data.loadedExpiration ?? data.expirations[0] ?? "" }
+          : leg
+        ));
       }
     } catch { /* fail silently */ }
     finally { setExpLoading(false); }
+  };
+
+  // When user changes expiration, fetch that expiration's chain for live premiums
+  const loadChainForExpiration = async (exp: string) => {
+    if (!exp || !expSymbol) return;
+    if (exp === loadedExpiration) return;
+    try {
+      const res = await fetch(`/api/expirations?ticker=${encodeURIComponent(expSymbol)}&expiration=${encodeURIComponent(exp)}`);
+      const data = await res.json();
+      if (res.ok && data.strikes) {
+        setStrikes(data.strikes);
+        setLoadedExpiration(exp);
+      }
+    } catch { /* fail silently */ }
+  };
+
+  // Auto-fill premium when strike or type changes
+  const autoFillPremium = (legIdx: number, strike: string, type: "call" | "put" | "share") => {
+    if (type === "share" || !strike) return;
+    const strikeNum = parseFloat(strike);
+    const match = strikes.find(s => s.strike === strikeNum);
+    if (!match) return;
+    const side = type === "call" ? match.call : match.put;
+    if (!side) return;
+    setGradeLegs(prev => prev.map((l, i) => i === legIdx ? { ...l, premium: side.mid.toFixed(2) } : l));
   };
   const [upgradeSheetOffset, setUpgradeSheetOffset] = useState(0);
   const upgradeSheetStartY = useRef<number | null>(null);
@@ -1125,7 +1158,15 @@ export default function Home() {
                     </div>
                     <div style={styles.gradeLegField}>
                       <label style={styles.gradeLegFieldLabel}>Type</label>
-                      <select value={leg.type} onChange={e => setGradeLegs(prev => prev.map((l, i) => i === idx ? { ...l, type: e.target.value as "call" | "put" | "share" } : l))} style={styles.gradeSelect}>
+                      <select
+                        value={leg.type}
+                        onChange={e => {
+                          const newType = e.target.value as "call" | "put" | "share";
+                          setGradeLegs(prev => prev.map((l, i) => i === idx ? { ...l, type: newType, premium: "" } : l));
+                          autoFillPremium(idx, leg.strike, newType);
+                        }}
+                        style={styles.gradeSelect}
+                      >
                         <option value="call">Call</option>
                         <option value="put">Put</option>
                         <option value="share">Share</option>
@@ -1134,15 +1175,15 @@ export default function Home() {
                     {leg.type !== "share" && (
                       <>
                         <div style={styles.gradeLegField}>
-                          <label style={styles.gradeLegFieldLabel}>Strike</label>
-                          <input type="number" placeholder="e.g. 150" value={leg.strike} onChange={e => setGradeLegs(prev => prev.map((l, i) => i === idx ? { ...l, strike: e.target.value } : l))} style={styles.gradeInput} />
-                        </div>
-                        <div style={styles.gradeLegField}>
                           <label style={styles.gradeLegFieldLabel}>Expiration</label>
                           {expirations.length > 0 ? (
                             <select
                               value={leg.expiration}
-                              onChange={e => setGradeLegs(prev => prev.map((l, i) => i === idx ? { ...l, expiration: e.target.value } : l))}
+                              onChange={e => {
+                                const newExp = e.target.value;
+                                setGradeLegs(prev => prev.map((l, i) => i === idx ? { ...l, expiration: newExp, premium: "" } : l));
+                                loadChainForExpiration(newExp);
+                              }}
                               style={styles.gradeSelect}
                             >
                               <option value="">Select date...</option>
@@ -1151,18 +1192,54 @@ export default function Home() {
                               ))}
                             </select>
                           ) : (
-                            <input
-                              type="text"
-                              placeholder="Load dates first ↑"
-                              value={leg.expiration}
+                            <input type="text" placeholder="Load dates first ↑" value={leg.expiration}
                               onChange={e => setGradeLegs(prev => prev.map((l, i) => i === idx ? { ...l, expiration: e.target.value } : l))}
                               style={{ ...styles.gradeInput, color: "#64748b" }}
                             />
                           )}
                         </div>
                         <div style={styles.gradeLegField}>
-                          <label style={styles.gradeLegFieldLabel}>Premium (optional)</label>
-                          <input type="number" step="0.01" placeholder="e.g. 2.50" value={leg.premium} onChange={e => setGradeLegs(prev => prev.map((l, i) => i === idx ? { ...l, premium: e.target.value } : l))} style={styles.gradeInput} />
+                          <label style={styles.gradeLegFieldLabel}>Strike</label>
+                          {strikes.length > 0 ? (
+                            <select
+                              value={leg.strike}
+                              onChange={e => {
+                                const newStrike = e.target.value;
+                                setGradeLegs(prev => prev.map((l, i) => i === idx ? { ...l, strike: newStrike } : l));
+                                autoFillPremium(idx, newStrike, leg.type as "call" | "put");
+                              }}
+                              style={styles.gradeSelect}
+                            >
+                              <option value="">Select strike...</option>
+                              {strikes.map(s => {
+                                const side = leg.type === "call" ? s.call : s.put;
+                                const midLabel = side ? ` · mid $${side.mid.toFixed(2)}` : "";
+                                return (
+                                  <option key={s.strike} value={s.strike.toString()}>
+                                    ${s.strike}{midLabel}
+                                  </option>
+                                );
+                              })}
+                            </select>
+                          ) : (
+                            <input type="number" placeholder="e.g. 150" value={leg.strike}
+                              onChange={e => setGradeLegs(prev => prev.map((l, i) => i === idx ? { ...l, strike: e.target.value } : l))}
+                              style={styles.gradeInput}
+                            />
+                          )}
+                        </div>
+                        <div style={styles.gradeLegField}>
+                          <label style={styles.gradeLegFieldLabel}>
+                            Premium
+                            {leg.premium && strikes.length > 0 && <span style={{ color: "#22c55e", marginLeft: "6px", fontSize: "0.65rem" }}>● live mid</span>}
+                          </label>
+                          <input
+                            type="number" step="0.01"
+                            placeholder={strikes.length > 0 ? "Auto-filled from live chain" : "e.g. 2.50"}
+                            value={leg.premium}
+                            onChange={e => setGradeLegs(prev => prev.map((l, i) => i === idx ? { ...l, premium: e.target.value } : l))}
+                            style={{ ...styles.gradeInput, borderColor: leg.premium && strikes.length > 0 ? "#166534" : "#334155" }}
+                          />
                         </div>
                       </>
                     )}
