@@ -240,6 +240,16 @@ function inferTradeType(legs: TradeLeg[]): string {
   if (legs.length === 2) {
     const types = legs.map(l => l.type);
     const actions = legs.map(l => l.action);
+    const exps = legs.map(l => l.expiration).filter(Boolean);
+
+    // Check for diagonal FIRST — different expirations always means diagonal
+    if (exps.length === 2 && exps[0] !== exps[1]) {
+      if (types.every(t => t === "call")) return "Call Diagonal Spread";
+      if (types.every(t => t === "put")) return "Put Diagonal Spread";
+      return "Diagonal Spread";
+    }
+
+    // Same expiration — standard vertical spreads
     if (types.every(t => t === "call")) {
       if (actions[0] === "buy" && actions[1] === "sell") return "Call Debit Spread";
       if (actions[0] === "sell" && actions[1] === "buy") return "Bear Call Spread";
@@ -248,8 +258,6 @@ function inferTradeType(legs: TradeLeg[]): string {
       if (actions[0] === "buy" && actions[1] === "sell") return "Put Debit Spread";
       if (actions[0] === "sell" && actions[1] === "buy") return "Bull Put Spread";
     }
-    const exps = legs.map(l => l.expiration).filter(Boolean);
-    if (exps.length === 2 && exps[0] !== exps[1]) return "Diagonal Spread";
   }
   if (legs.length === 4) return "Iron Condor / Combo";
   return `${legs.length}-Leg Strategy`;
@@ -390,6 +398,32 @@ export async function POST(req: Request) {
     const tradeType = inferTradeType(legs);
     const tradeLegsFormatted = formatTradeLegs(legs);
 
+    const isDiagonal = tradeType.includes("Diagonal");
+    const isCredit = tradeType.includes("Bull Put") || tradeType.includes("Bear Call");
+    const isDebit = tradeType.includes("Debit");
+    const isCondor = tradeType.includes("Condor");
+
+    const structureContext = isDiagonal
+      ? `\nSTRATEGY CONTEXT — DIAGONAL SPREAD:
+This is intentionally a diagonal spread (different expirations). Do NOT grade it as if it were a vertical spread or complain about mismatched expirations — the trader knows what they're doing.
+Grade it on:
+- Does the direction make sense given the technicals?
+- Is the near-term short strike positioned well (above resistance for calls, below support for puts)?
+- Does the far expiration give enough time for the move to develop?
+- Is the net debit reasonable relative to the width between strikes?
+- Does earnings timing affect either leg?
+- Is the short leg at risk of being blown through on earnings?`
+      : isCredit
+      ? `\nSTRATEGY CONTEXT — CREDIT SPREAD:
+Grade on: PoP and strike placement relative to S/R, premium collected vs max loss, whether the short strike is safely beyond key levels, and whether theta decay works in the trader's favor.`
+      : isDebit
+      ? `\nSTRATEGY CONTEXT — DEBIT SPREAD:
+Grade on: Whether the direction and momentum justify paying for this spread, whether the long strike gives a realistic path to profit, R:R relative to current premium.`
+      : isCondor
+      ? `\nSTRATEGY CONTEXT — IRON CONDOR:
+Grade on: Whether the market is actually range-bound, whether both short strikes are outside key S/R levels, and whether the credit collected justifies the risk.`
+      : "";
+
     const prompt = `You are a sharp, experienced options trader reviewing a trade submitted by a user.
 
 STOCK: ${symbol}${resolved.resolvedDisplayName ? ` (${resolved.resolvedDisplayName})` : ""}
@@ -400,26 +434,28 @@ USER'S TRADE:
 Strategy Type: ${tradeType}
 ${tradeLegsFormatted}
 ${notes ? `\nTrader's Notes: ${notes}` : ""}
+${structureContext}
 
 ${technicalSection}
 
 ${headlinesSection}
 
 Grade this trade and explain your reasoning. Be direct, honest, and trader-focused.
+Grade the trade AS THE STRATEGY IT IS — do not suggest the trader "fix" the structure unless it is genuinely broken or inappropriate for the conditions.
 
 GRADING CRITERIA:
-- Does the direction of the trade align with the current technical setup?
-- Is the structure appropriate for current market conditions (trend/moderate/neutral)?
-- Is the timing sound relative to earnings, RSI, EMA alignment?
-- Is the risk/reward reasonable given the strikes and premium (if provided)?
+- Does the direction align with the current technical setup?
+- Is this the right structure for current market conditions?
+- Is timing sound relative to earnings, RSI, EMA alignment?
 - Are the strikes placed intelligently relative to support/resistance?
-- Is premium risk appropriate — is the trader paying too much (overbought) or collecting too little?
+- Is premium risk appropriate?
+- For diagonals specifically: does the short leg placement and near expiry make sense?
 
 Format EXACTLY as follows:
 
 Grade: (A / B / C / D / F)
 
-Verdict: (One punchy sentence — e.g. "Solid setup, strikes are well-placed relative to support." or "Wrong direction for current technicals.")
+Verdict: (One punchy sentence summing up the trade)
 
 Technical Alignment:
 - RSI/MACD: (how momentum supports or contradicts this trade)
@@ -437,7 +473,7 @@ What's Working:
 What's Wrong / What to Watch:
 - (Biggest risk or flaw in the trade)
 - (What would invalidate it — specific price level)
-- (One suggestion to improve the trade if applicable)
+- (One suggestion to improve or manage the trade if applicable)
 
 Bottom Line:
 - (One clear, direct sentence on whether to take this trade, adjust it, or pass)
