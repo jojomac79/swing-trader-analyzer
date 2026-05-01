@@ -1079,13 +1079,25 @@ export default function Home() {
             {/* ── Tab switcher ── */}
             <div style={styles.tabRow}>
               <button
-                onClick={() => { setActiveTab("analyze"); setError(""); setGradeError(""); }}
+                onClick={() => {
+                  setActiveTab("analyze");
+                  setError("");
+                  setGradeError("");
+                  setGradeResult("");
+                  setGradeMeta(null);
+                }}
                 style={{ ...styles.tabBtn, ...(activeTab === "analyze" ? styles.tabBtnActive : {}) }}
               >
                 📈 Swing Trade Analyzer
               </button>
               <button
-                onClick={() => { setActiveTab("grade"); setError(""); setGradeError(""); }}
+                onClick={() => {
+                  setActiveTab("grade");
+                  setError("");
+                  setGradeError("");
+                  setResult("");
+                  setMeta(null);
+                }}
                 style={{ ...styles.tabBtn, ...(activeTab === "grade" ? styles.tabBtnActiveGrade : {}) }}
               >
                 🎯 Grade My Trade <span style={{ fontSize: "0.6rem", fontWeight: 800, background: "#f59e0b", color: "#111827", padding: "2px 5px", borderRadius: "6px", marginLeft: "6px", verticalAlign: "middle" }}>NEW</span>
