@@ -541,12 +541,18 @@ function inferBiasSignal(tech: TechData | null): BiasSignal {
   }
 
   // ── STEP 1: Classify the market regime ──────────────────────────────────────
+  // trend   = strong conviction + aligned trend → debit spreads
+  // moderate = any lean with some signal → credit spreads
+  // neutral  = genuinely flat, no signal at all → condor (rare)
   let regime: MarketRegime;
-  if (confidence >= 7.5 && trendStrength === "strong") {
+  if (confidence >= 7.0 && trendStrength === "strong") {
     regime = "trend";
-  } else if (confidence >= 5 && confidence < 7.5) {
+  } else if (bias !== "Neutral" || confidence >= 5.5) {
+    // moderate covers: any directional bias OR confidence above 5.5
+    // this is the most common case — credit spreads live here
     regime = "moderate";
   } else {
+    // neutral only when bias is genuinely flat AND confidence is low
     regime = "neutral";
   }
 
@@ -629,11 +635,19 @@ function selectGatedStrategies(args: {
 
   else if (signal.regime === "moderate") {
     // ── MODERATE: credit spreads dominate ────────────────────────────────────
+    // When bias is clearly bearish, skip bull put. When clearly bullish, skip bear call.
+    // When neutral/mixed, add BOTH and let scoring decide — highest PoP + R:R wins.
     if (signal.bias !== "Bearish" && args.liveBullPut) {
-      candidates.push({ kind: "bullPut", score: scoreCreditSpread(args.liveBullPut, signal, tech, true), reason: "Moderate bullish setup — credit spread collects premium with high PoP." });
+      const reason = signal.bias === "Bullish"
+        ? "Moderate bullish setup — bull put collects premium below support."
+        : "Mixed signals — bull put offers higher PoP than directional debit.";
+      candidates.push({ kind: "bullPut", score: scoreCreditSpread(args.liveBullPut, signal, tech, true), reason });
     }
     if (signal.bias !== "Bullish" && args.liveBearCall) {
-      candidates.push({ kind: "bearCall", score: scoreCreditSpread(args.liveBearCall, signal, tech, false), reason: "Moderate bearish setup — bear call captures premium above resistance." });
+      const reason = signal.bias === "Bearish"
+        ? "Moderate bearish setup — bear call captures premium above resistance."
+        : "Mixed signals — bear call offers higher PoP than directional debit.";
+      candidates.push({ kind: "bearCall", score: scoreCreditSpread(args.liveBearCall, signal, tech, false), reason });
     }
     // diagonals only as fallback if no credit spreads exist
     if (candidates.length === 0) {
