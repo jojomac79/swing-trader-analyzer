@@ -888,7 +888,7 @@ export async function POST(req: Request) {
       liveIronCondor,
     });
 
-    // ── Quality gate — force No Trade when the best candidate isn't worth taking ──
+    // ── Quality gate — only force No Trade on genuinely bad setups ──────────────
     const earningsDateParsed = nextEarnings !== "No upcoming earnings found in next 60 days"
       ? new Date(nextEarnings) : null;
     const nearExpDate = new Date(nearExpiration);
@@ -898,41 +898,32 @@ export async function POST(req: Request) {
 
     const noTradeReasons: string[] = [];
 
-    // 1. No candidates at all
+    // 1. No candidates at all — genuinely nothing to show
     if (!topCandidate) {
       noTradeReasons.push("No valid strategy candidates found in current market regime.");
     }
 
-    // 2. Score too low — best option is mediocre
-    if (topCandidate && topCandidate.score < 25) {
-      noTradeReasons.push(`Best candidate score (${topCandidate.score.toFixed(1)}) is too low — setup lacks conviction.`);
-    }
-
-    // 3. Iron condor credit too thin (< 15% of wing width)
+    // 2. Iron condor credit dangerously thin (< 10% of wing width) — not just suboptimal
     if (topCandidate?.kind === "ironCondor" && liveIronCondor) {
       const creditRatio = liveIronCondor.totalCredit / liveIronCondor.width;
-      if (creditRatio < 0.15) {
+      if (creditRatio < 0.10) {
         noTradeReasons.push(`Iron condor credit ($${liveIronCondor.totalCredit.toFixed(2)}) is only ${(creditRatio * 100).toFixed(0)}% of wing width — not enough premium to justify the risk.`);
       }
     }
 
-    // 4. Credit spread PoP below 60% — too risky
-    if (topCandidate?.kind === "bullPut" && liveBullPut?.pop != null && liveBullPut.pop < 60) {
-      noTradeReasons.push(`Bull put PoP (${liveBullPut.pop}%) is below 60% — short strike too close to price.`);
+    // 3. Credit spread PoP critically low (< 52%) — short strike essentially at the money
+    if (topCandidate?.kind === "bullPut" && liveBullPut?.pop != null && liveBullPut.pop < 52) {
+      noTradeReasons.push(`Bull put PoP (${liveBullPut.pop}%) is critically low — short strike is essentially at the money.`);
     }
-    if (topCandidate?.kind === "bearCall" && liveBearCall?.pop != null && liveBearCall.pop < 60) {
-      noTradeReasons.push(`Bear call PoP (${liveBearCall.pop}%) is below 60% — short strike too close to price.`);
-    }
-
-    // 5. Earnings fall inside the expiration window — binary event risk
-    if (earningsInsideWindow && topCandidate) {
-      noTradeReasons.push(`Earnings on ${nextEarnings} fall inside the ${nearExpiration} expiration — binary event risk makes defined-outcome strategies unreliable.`);
+    if (topCandidate?.kind === "bearCall" && liveBearCall?.pop != null && liveBearCall.pop < 52) {
+      noTradeReasons.push(`Bear call PoP (${liveBearCall.pop}%) is critically low — short strike is essentially at the money.`);
     }
 
-    // 6. Confidence too low to act even within the regime
-    if (biasSignal.confidence < 4 && biasSignal.regime !== "neutral") {
-      noTradeReasons.push(`Confidence (${biasSignal.confidence.toFixed(1)}/10) is too low to act directionally — wait for clearer signals.`);
-    }
+    // 4. Earnings inside expiry — pass as a WARNING to Claude, not a hard gate
+    // Claude will factor this in naturally from the earnings date in the prompt
+    const earningsWarning = earningsInsideWindow
+      ? `⚠️ EARNINGS WARNING: Earnings on ${nextEarnings} fall INSIDE the ${nearExpiration} expiration window — flag this prominently in the analysis and factor it into the grade.`
+      : "";
 
     const forceNoTrade = noTradeReasons.length > 0;
 
@@ -950,10 +941,12 @@ ${noTradeReasons.map(r => `- ${r}`).join("\n")}
 Tell the user clearly why no trade is recommended and what they should wait for.`
       : gatedCandidates.length
       ? `MARKET REGIME: ${regimeLabel}
+${earningsWarning ? "\n" + earningsWarning : ""}
 
 GATED STRATEGY SHORTLIST (scored within this regime only — pick from these):
 ${gatedCandidates.map((r, i) => `${i + 1}. ${r.kind} — score ${r.score.toFixed(1)} — ${r.reason}`).join("\n")}`
       : `MARKET REGIME: ${regimeLabel}
+${earningsWarning ? "\n" + earningsWarning : ""}
 
 GATED STRATEGY SHORTLIST:
 - No valid candidates in this regime. Use No Trade.`;

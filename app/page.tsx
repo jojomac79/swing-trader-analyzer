@@ -887,8 +887,7 @@ export default function Home() {
     if (preferredStrategy === "Call Diagonal" && meta.liveCallDiagonal) return { type: "callDiagonal", spread: meta.liveCallDiagonal };
     if (preferredStrategy === "Put Diagonal" && meta.livePutDiagonal) return { type: "putDiagonal", spread: meta.livePutDiagonal };
     if (preferredStrategy === "Iron Condor" && meta.liveIronCondor) return { type: "ironCondor", spread: meta.liveIronCondor };
-    if (preferredStrategy === "No Trade") return null;
-    if (preferredStrategy) return null;
+    // No Trade or unmatched strategy — still show best available live candidate for reference
     return pickFallbackTrade(meta, bias);
   }, [meta, preferredStrategy, bias]);
 
@@ -1470,6 +1469,12 @@ export default function Home() {
 
         {meta && (bias === "Bullish" || bias === "Bearish") && <BeginnerCard bias={bias} symbol={meta.symbol ?? ""} currentPrice={meta.currentPrice ?? ""} />}
 
+        {preferredStrategy === "No Trade" && selectedTradeCard && (
+          <div style={{ background: "#1c1008", border: "1px solid #92400e", borderRadius: "10px", padding: "10px 14px", marginBottom: "8px", fontSize: "0.83rem", color: "#fbbf24", display: "flex", alignItems: "center", gap: "8px" }}>
+            <span>⚠️</span>
+            <span><strong>No Trade recommended</strong> — setup doesn't meet quality criteria. The card below shows the best available live structure for reference only. Read the full analysis before acting.</span>
+          </div>
+        )}
         {selectedTradeCard?.type === "callDebit" && <DebitCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} />}
         {selectedTradeCard?.type === "putDebit" && <DebitCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} />}
         {selectedTradeCard?.type === "bullPut" && <CreditCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} />}
