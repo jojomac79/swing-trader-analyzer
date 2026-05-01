@@ -163,14 +163,79 @@ function isRelevantHeadline(item: FinnhubNewsItem, keywords: string[]): boolean 
   return keywords.some((k) => text.includes(k));
 }
 
-function chooseNearExpiration(expirations: string[], earningsDate: string): string | null {
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function dte(expDate: Date): number {
+  return Math.round((expDate.getTime() - Date.now()) / MS_PER_DAY);
+}
+
+// Choose expiration for CREDIT strategies (bull put, bear call, condor)
+// Sweet spot: 14–35 DTE for max theta burn rate
+function chooseCreditExpiration(expirations: string[], earningsDate: string): string | null {
   if (!expirations.length) return null;
-  const today = new Date();
   const earnings = parseDateSafe(earningsDate);
-  const valid = expirations.map((e) => ({ raw: e, date: parseDateSafe(e) })).filter((x): x is { raw: string; date: Date } => x.date !== null && x.date >= today);
+  const today = new Date();
+
+  const valid = expirations
+    .map((e) => ({ raw: e, date: parseDateSafe(e) }))
+    .filter((x): x is { raw: string; date: Date } => x.date !== null && x.date > today);
+
   if (!valid.length) return null;
-  if (earnings) { const before = valid.filter((x) => x.date <= earnings); if (before.length) return before[before.length - 1].raw; }
-  return valid[0].raw;
+
+  // Prefer 14–35 DTE, stop before earnings if possible
+  const sweet = valid.filter((x) => {
+    const d = dte(x.date);
+    const beforeEarnings = !earnings || x.date < earnings;
+    return d >= 14 && d <= 35 && beforeEarnings;
+  });
+  if (sweet.length) return sweet[0].raw;
+
+  // Fallback: anything 14–35 DTE even if earnings inside window
+  const sweetAny = valid.filter((x) => { const d = dte(x.date); return d >= 14 && d <= 35; });
+  if (sweetAny.length) return sweetAny[0].raw;
+
+  // Last resort: nearest expiry with at least 7 DTE
+  const minDte = valid.filter((x) => dte(x.date) >= 7);
+  return minDte.length ? minDte[0].raw : valid[0].raw;
+}
+
+// Choose expiration for DEBIT strategies (call debit, put debit, long options, diagonals)
+// Minimum 21 DTE to avoid theta crush; ideally 28–50 DTE
+function chooseDebitExpiration(expirations: string[], earningsDate: string): string | null {
+  if (!expirations.length) return null;
+  const earnings = parseDateSafe(earningsDate);
+  const today = new Date();
+
+  const valid = expirations
+    .map((e) => ({ raw: e, date: parseDateSafe(e) }))
+    .filter((x): x is { raw: string; date: Date } => x.date !== null && x.date > today);
+
+  if (!valid.length) return null;
+
+  // Prefer 21–50 DTE, stop before earnings if possible
+  const sweet = valid.filter((x) => {
+    const d = dte(x.date);
+    const beforeEarnings = !earnings || x.date < earnings;
+    return d >= 21 && d <= 50 && beforeEarnings;
+  });
+  if (sweet.length) return sweet[0].raw;
+
+  // Fallback: 21–50 DTE regardless of earnings
+  const sweetAny = valid.filter((x) => { const d = dte(x.date); return d >= 21 && d <= 50; });
+  if (sweetAny.length) return sweetAny[0].raw;
+
+  // Fallback: at least 21 DTE
+  const minDte = valid.filter((x) => dte(x.date) >= 21);
+  if (minDte.length) return minDte[0].raw;
+
+  // Last resort: best available (at least 14 DTE preferred)
+  const fallback = valid.filter((x) => dte(x.date) >= 14);
+  return fallback.length ? fallback[0].raw : valid[0].raw;
+}
+
+// Legacy wrapper used for far expiration (diagonals)
+function chooseNearExpiration(expirations: string[], earningsDate: string): string | null {
+  return chooseCreditExpiration(expirations, earningsDate);
 }
 
 function chooseFarExpiration(expirations: string[], nearExpiration: string): string | null {
@@ -824,45 +889,77 @@ export async function POST(req: Request) {
     if (!expRes.ok) return NextResponse.json({ error: `Failed to fetch expirations for ${symbol}.` }, { status: 500 });
 
     const expirations = normalizeExpirations((await expRes.json()) as TradierExpirationsResponse);
-    const nearExpiration = chooseNearExpiration(expirations, nextEarnings);
-    if (!nearExpiration) return NextResponse.json({ error: `No usable expiration for ${symbol}.` }, { status: 500 });
-    const farExpiration = chooseFarExpiration(expirations, nearExpiration);
 
-    const nearChainRes = await fetch(`https://api.tradier.com/v1/markets/options/chains?symbol=${sym}&expiration=${encodeURIComponent(nearExpiration)}&greeks=true`, { headers: { Authorization: `Bearer ${tradierKey}`, Accept: "application/json" }, cache: "no-store" });
-    if (!nearChainRes.ok) return NextResponse.json({ error: `Failed to fetch options chain for ${symbol}.` }, { status: 500 });
-    const nearOptions = normalizeOptions((await nearChainRes.json()) as TradierChainResponse);
+    // ── Pick expirations by strategy type ────────────────────────────────────
+    // Credit strategies: 14–35 DTE (sweet spot for theta collection)
+    // Debit strategies: 21–50 DTE (avoid theta crush on long premium)
+    const creditExpiration = chooseCreditExpiration(expirations, nextEarnings);
+    const debitExpiration  = chooseDebitExpiration(expirations, nextEarnings);
+
+    if (!creditExpiration && !debitExpiration) {
+      return NextResponse.json({ error: `No usable expiration for ${symbol}.` }, { status: 500 });
+    }
+
+    // Use credit expiration as the "near" reference (for UI display + diagonals)
+    const nearExpiration = creditExpiration ?? debitExpiration!;
+    const farExpiration  = chooseFarExpiration(expirations, nearExpiration);
+
+    // Fetch chains — may need two separate fetches if credit/debit expirations differ
+    const uniqueExps = [...new Set([creditExpiration, debitExpiration].filter(Boolean) as string[])];
+
+    const chainMap: Record<string, TradierOptionContract[]> = {};
+    await Promise.all(uniqueExps.map(async (exp) => {
+      const res = await fetch(
+        `https://api.tradier.com/v1/markets/options/chains?symbol=${sym}&expiration=${encodeURIComponent(exp)}&greeks=true`,
+        { headers: { Authorization: `Bearer ${tradierKey}`, Accept: "application/json" }, cache: "no-store" }
+      );
+      if (res.ok) chainMap[exp] = normalizeOptions((await res.json()) as TradierChainResponse);
+    }));
+
+    const creditOptions = creditExpiration ? (chainMap[creditExpiration] ?? []) : [];
+    const debitOptions  = debitExpiration  ? (chainMap[debitExpiration]  ?? []) : [];
+    const nearOptions   = creditOptions.length ? creditOptions : debitOptions; // fallback for diagonals
 
     let farOptions: TradierOptionContract[] = [];
     if (farExpiration) {
-      const farRes = await fetch(`https://api.tradier.com/v1/markets/options/chains?symbol=${sym}&expiration=${encodeURIComponent(farExpiration)}&greeks=true`, { headers: { Authorization: `Bearer ${tradierKey}`, Accept: "application/json" }, cache: "no-store" });
+      const farRes = await fetch(
+        `https://api.tradier.com/v1/markets/options/chains?symbol=${sym}&expiration=${encodeURIComponent(farExpiration)}&greeks=true`,
+        { headers: { Authorization: `Bearer ${tradierKey}`, Accept: "application/json" }, cache: "no-store" }
+      );
       if (farRes.ok) farOptions = normalizeOptions((await farRes.json()) as TradierChainResponse);
     }
 
-    let liveCallDebit = buildCallDebitSpread(nearOptions, currentPriceNumber);
-    let livePutDebit  = buildPutDebitSpread(nearOptions, currentPriceNumber);
-    // Standalone credit spreads — no minimum gap required
-    let liveBullPut   = buildBullPutSpread(nearOptions, currentPriceNumber);
-    let liveBearCall  = buildBearCallSpread(nearOptions, currentPriceNumber);
-    if (liveCallDebit) liveCallDebit.expiration = nearExpiration;
-    if (livePutDebit)  livePutDebit.expiration  = nearExpiration;
-    if (liveBullPut)   liveBullPut.expiration   = nearExpiration;
-    if (liveBearCall)  liveBearCall.expiration  = nearExpiration;
+    // ── Build strategies using appropriate expiration chains ─────────────────
+    // Debit spreads: use debitOptions (21–50 DTE) to avoid theta crush
+    let liveCallDebit = debitExpiration && debitOptions.length ? buildCallDebitSpread(debitOptions, currentPriceNumber) : null;
+    let livePutDebit  = debitExpiration && debitOptions.length ? buildPutDebitSpread(debitOptions, currentPriceNumber) : null;
+    if (liveCallDebit) liveCallDebit.expiration = debitExpiration!;
+    if (livePutDebit)  livePutDebit.expiration  = debitExpiration!;
 
-    const liveCallDiagonal = farExpiration && farOptions.length ? buildCallDiagonal(nearOptions, farOptions, currentPriceNumber, nearExpiration, farExpiration) : null;
-    const livePutDiagonal  = farExpiration && farOptions.length ? buildPutDiagonal(nearOptions, farOptions, currentPriceNumber, nearExpiration, farExpiration) : null;
+    // Credit spreads: use creditOptions (14–35 DTE) for optimal theta burn
+    let liveBullPut  = creditExpiration && creditOptions.length ? buildBullPutSpread(creditOptions, currentPriceNumber) : null;
+    let liveBearCall = creditExpiration && creditOptions.length ? buildBearCallSpread(creditOptions, currentPriceNumber) : null;
+    if (liveBullPut)  liveBullPut.expiration  = creditExpiration!;
+    if (liveBearCall) liveBearCall.expiration = creditExpiration!;
 
-    // Iron Condor: use wider short strikes — at least 1x ATR away from price on each side
-    // This prevents dangerously tight condors on volatile stocks
+    // Diagonals: near = credit exp, far = far exp
+    const liveCallDiagonal = farExpiration && nearOptions.length && farOptions.length
+      ? buildCallDiagonal(nearOptions, farOptions, currentPriceNumber, nearExpiration, farExpiration) : null;
+    const livePutDiagonal  = farExpiration && nearOptions.length && farOptions.length
+      ? buildPutDiagonal(nearOptions, farOptions, currentPriceNumber, nearExpiration, farExpiration) : null;
+
+    // Iron Condor: credit expiration with ATR-based gap
     const atrGap = techData?.atr14 ?? 0;
-    const condorMinGap = Math.max(atrGap * 1.0, 1); // at least 1x ATR, minimum $1
-    const condorBullPut  = buildBullPutSpread(nearOptions, currentPriceNumber, condorMinGap);
-    const condorBearCall = buildBearCallSpread(nearOptions, currentPriceNumber, condorMinGap);
-    if (condorBullPut)  condorBullPut.expiration  = nearExpiration;
-    if (condorBearCall) condorBearCall.expiration = nearExpiration;
+    const condorMinGap = Math.max(atrGap * 1.0, 1);
+    const condorBullPut  = creditExpiration && creditOptions.length ? buildBullPutSpread(creditOptions, currentPriceNumber, condorMinGap) : null;
+    const condorBearCall = creditExpiration && creditOptions.length ? buildBearCallSpread(creditOptions, currentPriceNumber, condorMinGap) : null;
+    if (condorBullPut)  condorBullPut.expiration  = creditExpiration!;
+    if (condorBearCall) condorBearCall.expiration = creditExpiration!;
     const liveIronCondor = buildIronCondor(condorBullPut, condorBearCall);
 
-    const liveLongCall = buildLongCall(nearOptions, currentPriceNumber, nearExpiration);
-    const liveLongPut  = buildLongPut(nearOptions, currentPriceNumber, nearExpiration);
+    // Long options: use debit expiration for adequate time value
+    const liveLongCall = debitExpiration && debitOptions.length ? buildLongCall(debitOptions, currentPriceNumber, debitExpiration) : null;
+    const liveLongPut  = debitExpiration && debitOptions.length ? buildLongPut(debitOptions, currentPriceNumber, debitExpiration) : null;
 
     const resolutionSection = resolved.resolvedFromName
       ? `Input Resolved:\n- Original: ${resolved.originalInput}\n- Ticker: ${symbol}\n- Company: ${resolved.resolvedDisplayName ?? "Unknown"}`
