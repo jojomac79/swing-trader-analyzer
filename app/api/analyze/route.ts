@@ -755,6 +755,18 @@ function selectGatedStrategies(args: {
         candidates.push({ kind: "putDiagonal", score: 50, reason: "No credit spreads available — put diagonal is next best moderate play." });
       }
     }
+
+    // Escape hatch: allow debit spreads in moderate regime only when momentum clearly confirms.
+    // Credit spreads still dominate — debit gets a -8 score penalty so it only wins when the setup is genuinely strong.
+    const allowModerateDebit = signal.confidence >= 6.5 && signal.trendStrength !== "weak";
+    if (allowModerateDebit) {
+      if (signal.bias === "Bullish" && signal.momentum === "bullish" && args.liveCallDebit) {
+        candidates.push({ kind: "callDebit", score: scoreDebitSpread(args.liveCallDebit, signal, tech, true) - 8, reason: "Moderate bullish setup with confirmed momentum — call debit allowed, but credit spreads still get priority." });
+      }
+      if (signal.bias === "Bearish" && signal.momentum === "bearish" && args.livePutDebit) {
+        candidates.push({ kind: "putDebit", score: scoreDebitSpread(args.livePutDebit, signal, tech, false) - 8, reason: "Moderate bearish setup with confirmed momentum — put debit allowed, but credit spreads still get priority." });
+      }
+    }
   }
 
   else {
