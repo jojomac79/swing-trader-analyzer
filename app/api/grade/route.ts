@@ -263,7 +263,7 @@ function inferTradeType(legs: TradeLeg[]): string {
   return `${legs.length}-Leg Strategy`;
 }
 
-const FREE_DAILY_LIMIT = 3;
+const FREE_DAILY_LIMIT = 2;
 
 export async function POST(req: Request) {
   try {

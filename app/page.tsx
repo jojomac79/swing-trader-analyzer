@@ -189,7 +189,16 @@ function getPopColor(pop: number): string {
   return "#ef4444";
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ─── Animated ellipsis hook ───────────────────────────────────────────────────
+function useAnimatedDots(active: boolean): string {
+  const [dots, setDots] = useState("");
+  useEffect(() => {
+    if (!active) { setDots(""); return; }
+    const id = setInterval(() => setDots(d => d.length >= 3 ? "" : d + "."), 400);
+    return () => clearInterval(id);
+  }, [active]);
+  return dots;
+}
 
 function TradeSummaryCard({ bias, confidence, strategy, target, invalidate, onViewAnalysis }: {
   bias: "Bullish" | "Bearish" | "Neutral" | null;
@@ -840,6 +849,9 @@ export default function Home() {
   }, [showUpgradeModal]);
 
   const bias = useMemo(() => getBiasFromResult(result), [result]);
+  const analyzeDots = useAnimatedDots(loading);
+  const gradeDots = useAnimatedDots(gradeLoading);
+  const expDots = useAnimatedDots(expLoading);
   const preferredStrategy = useMemo(() => getPreferredStrategy(result), [result]);
   const altTradeText = useMemo(() => getAltTradeText(result), [result]);
   const confidenceScore = useMemo(() => getConfidenceScore(result), [result]);
@@ -1117,7 +1129,7 @@ export default function Home() {
           <form onSubmit={(e) => { e.preventDefault(); analyzeStock(); }} style={styles.searchRow}>
             <input type="text" placeholder="Ticker or company (e.g. AAPL or Netflix)" value={ticker} onChange={(e) => setTicker(e.target.value)} style={styles.input} autoFocus disabled={loading || status === "loading"} />
             <button type="submit" disabled={loading || !ticker.trim() || status === "loading"} style={styles.button}>
-              {loading ? "Scanning Options Chain..." : "Analyze"}
+              {loading ? `Scanning Options Chain${analyzeDots}` : "Analyze"}
             </button>
           </form>
         )}
@@ -1142,7 +1154,7 @@ export default function Home() {
                 disabled={!gradeTicker.trim() || expLoading || !isSignedIn}
                 style={{ ...styles.button, background: expirations.length ? "#22c55e" : "#6366f1", color: expirations.length ? "#04130a" : "#fff", minWidth: "unset", padding: "12px 20px", fontSize: "0.9rem", fontWeight: 800 }}
               >
-                {expLoading ? "Loading..." : expirations.length ? `✓ ${expirations.length} Dates` : "Load Dates →"}
+                {expLoading ? `Loading${expDots}` : expirations.length ? `✓ ${expirations.length} Dates` : "Load Dates →"}
               </button>
             </div>
             {expirations.length === 0 && gradeTicker.trim() && !expLoading && (
@@ -1280,7 +1292,7 @@ export default function Home() {
                 disabled={gradeLoading || !gradeTicker.trim() || status === "loading"}
                 style={{ ...styles.button, flex: 1 }}
               >
-                {gradeLoading ? "Grading your trade..." : "Grade My Trade"}
+                {gradeLoading ? `Grading your trade${gradeDots}` : "Grade My Trade"}
               </button>
               {(gradeResult || gradeLegs.some(l => l.strike || l.expiration || l.premium) || gradeTicker) && (
                 <button
