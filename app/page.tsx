@@ -934,8 +934,12 @@ export default function Home() {
     if (!isSignedIn) { setShowGoogleGate(true); return; }
     if (!disclaimerAccepted) { setShowDisclaimer(true); return; }
     if (showPaywall && !isPremium) { setShowUpgradeModal(true); return; }
-    const hasValidLeg = gradeLegs.some(l => l.strike || l.expiration || l.premium);
-    if (!hasValidLeg && gradeLegs[0].type !== "share") { setGradeError("Fill in at least one leg with a strike or expiration."); return; }
+    // Validate every non-share leg has a strike selected
+    const missingStrike = gradeLegs.findIndex(l => l.type !== "share" && !l.strike);
+    if (missingStrike !== -1) {
+      setGradeError(`Leg ${missingStrike + 1} is missing a strike price — select one from the dropdown.`);
+      return;
+    }
     setGradeLoading(true); setGradeError(""); setGradeResult(""); setGradeMeta(null);
     try {
       const legsPayload = gradeLegs.map(l => ({
@@ -1242,8 +1246,9 @@ export default function Home() {
                                 const newStrike = e.target.value;
                                 setGradeLegs(prev => prev.map((l, i) => i === idx ? { ...l, strike: newStrike } : l));
                                 autoFillPremium(idx, newStrike, leg.type as "call" | "put");
+                                if (newStrike) setGradeError(""); // clear error once strike is picked
                               }}
-                              style={styles.gradeSelect}
+                              style={{ ...styles.gradeSelect, borderColor: !leg.strike && gradeError.includes(`Leg ${idx + 1}`) ? "#ef4444" : "#334155" }}
                             >
                               <option value="">Select strike...</option>
                               {strikes.map(s => {
@@ -1258,8 +1263,11 @@ export default function Home() {
                             </select>
                           ) : (
                             <input type="number" placeholder="e.g. 150" value={leg.strike}
-                              onChange={e => setGradeLegs(prev => prev.map((l, i) => i === idx ? { ...l, strike: e.target.value } : l))}
-                              style={styles.gradeInput}
+                              onChange={e => {
+                                setGradeLegs(prev => prev.map((l, i) => i === idx ? { ...l, strike: e.target.value } : l));
+                                if (e.target.value) setGradeError("");
+                              }}
+                              style={{ ...styles.gradeInput, borderColor: !leg.strike && gradeError.includes(`Leg ${idx + 1}`) ? "#ef4444" : "#334155" }}
                             />
                           )}
                         </div>
