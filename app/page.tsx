@@ -1006,18 +1006,20 @@ export default function Home() {
     if (!disclaimerAccepted) { setShowDisclaimer(true); return; }
     if (showPaywall && !isPremium) { setShowUpgradeModal(true); return; }
 
-    // Switch to grade tab and pre-fill the form
+    // Clear everything immediately before any async work
+    setGradeResult("");
+    setGradeMeta(null);
+    setGradeError("");
+    setGradeLoading(true);
+
+    // Switch tab and pre-fill form
     setActiveTab("grade");
     setResult(""); setMeta(null);
-    setGradeResult(""); setGradeMeta(null); setGradeError("");
     setGradeTicker(ticker);
     setGradeLegs(legs);
     setGradeNotes("");
     setExpirations([]); setStrikes([]); setLoadedExpiration(""); setExpSymbol("");
     window.scrollTo({ top: 0, behavior: "smooth" });
-
-    // Call the API directly with the legs we already have — don't rely on state settling
-    setGradeLoading(true);
     try {
       const legsPayload = legs.map(l => ({
         action: l.action,
@@ -1050,27 +1052,24 @@ export default function Home() {
     } finally { setGradeLoading(false); }
   };
 
-  const gradeFromSpread = (spread: LiveDebitSpread | LiveCreditSpread | LiveIronCondor | LiveDiagonalSpread, ticker: string) => {
+  const gradeFromSpread = (spread: LiveDebitSpread | LiveCreditSpread | LiveIronCondor | LiveDiagonalSpread, ticker: string, cardType: string) => {
     let legs: { action: "buy" | "sell"; type: "call" | "put" | "share"; strike: string; expiration: string; premium: string }[] = [];
 
-    if ("netDebit" in spread && "longStrike" in spread && !("nearExpiration" in spread)) {
-      // Debit spread
+    if (cardType === "callDebit" || cardType === "putDebit") {
       const s = spread as LiveDebitSpread;
-      const isCall = s.strategyType === "Call Debit Spread";
+      const isCall = cardType === "callDebit";
       legs = [
         { action: "buy", type: isCall ? "call" : "put", strike: s.longStrike.toString(), expiration: s.expiration, premium: s.longMid.toFixed(2) },
         { action: "sell", type: isCall ? "call" : "put", strike: s.shortStrike.toString(), expiration: s.expiration, premium: s.shortMid.toFixed(2) },
       ];
-    } else if ("netCredit" in spread && "shortStrike" in spread) {
-      // Credit spread
+    } else if (cardType === "bullPut" || cardType === "bearCall") {
       const s = spread as LiveCreditSpread;
-      const isCall = s.strategyType === "Bear Call Spread";
+      const isCall = cardType === "bearCall";
       legs = [
         { action: "sell", type: isCall ? "call" : "put", strike: s.shortStrike.toString(), expiration: s.expiration, premium: s.shortMid.toFixed(2) },
         { action: "buy", type: isCall ? "call" : "put", strike: s.longStrike.toString(), expiration: s.expiration, premium: s.longMid.toFixed(2) },
       ];
-    } else if ("totalCredit" in spread) {
-      // Iron condor
+    } else if (cardType === "ironCondor") {
       const s = spread as LiveIronCondor;
       legs = [
         { action: "sell", type: "put", strike: s.putShortStrike.toString(), expiration: s.expiration, premium: "" },
@@ -1078,10 +1077,9 @@ export default function Home() {
         { action: "sell", type: "call", strike: s.callShortStrike.toString(), expiration: s.expiration, premium: "" },
         { action: "buy", type: "call", strike: s.callLongStrike.toString(), expiration: s.expiration, premium: "" },
       ];
-    } else if ("nearExpiration" in spread) {
-      // Diagonal
+    } else if (cardType === "callDiagonal" || cardType === "putDiagonal") {
       const s = spread as LiveDiagonalSpread;
-      const isCall = s.strategyType === "Call Diagonal";
+      const isCall = cardType === "callDiagonal";
       legs = [
         { action: "buy", type: isCall ? "call" : "put", strike: s.longStrike.toString(), expiration: s.farExpiration, premium: s.longMid.toFixed(2) },
         { action: "sell", type: isCall ? "call" : "put", strike: s.shortStrike.toString(), expiration: s.nearExpiration, premium: s.shortMid.toFixed(2) },
@@ -1583,13 +1581,13 @@ export default function Home() {
             <span><strong>No Trade recommended</strong> — setup doesn't meet quality criteria. The card below shows the best available live structure for reference only. Read the full analysis before acting.</span>
           </div>
         )}
-        {selectedTradeCard?.type === "callDebit" && <DebitCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} onGrade={() => gradeFromSpread(selectedTradeCard.spread, meta?.symbol ?? "")} />}
-        {selectedTradeCard?.type === "putDebit" && <DebitCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} onGrade={() => gradeFromSpread(selectedTradeCard.spread, meta?.symbol ?? "")} />}
-        {selectedTradeCard?.type === "bullPut" && <CreditCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} onGrade={() => gradeFromSpread(selectedTradeCard.spread, meta?.symbol ?? "")} />}
-        {selectedTradeCard?.type === "bearCall" && <CreditCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} onGrade={() => gradeFromSpread(selectedTradeCard.spread, meta?.symbol ?? "")} />}
-        {selectedTradeCard?.type === "callDiagonal" && <DiagonalCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} onGrade={() => gradeFromSpread(selectedTradeCard.spread, meta?.symbol ?? "")} />}
-        {selectedTradeCard?.type === "putDiagonal" && <DiagonalCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} onGrade={() => gradeFromSpread(selectedTradeCard.spread, meta?.symbol ?? "")} />}
-        {selectedTradeCard?.type === "ironCondor" && <IronCondorCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} onGrade={() => gradeFromSpread(selectedTradeCard.spread, meta?.symbol ?? "")} />}
+        {selectedTradeCard?.type === "callDebit" && <DebitCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} onGrade={() => gradeFromSpread(selectedTradeCard.spread, meta?.symbol ?? "", "callDebit")} />}
+        {selectedTradeCard?.type === "putDebit" && <DebitCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} onGrade={() => gradeFromSpread(selectedTradeCard.spread, meta?.symbol ?? "", "putDebit")} />}
+        {selectedTradeCard?.type === "bullPut" && <CreditCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} onGrade={() => gradeFromSpread(selectedTradeCard.spread, meta?.symbol ?? "", "bullPut")} />}
+        {selectedTradeCard?.type === "bearCall" && <CreditCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} onGrade={() => gradeFromSpread(selectedTradeCard.spread, meta?.symbol ?? "", "bearCall")} />}
+        {selectedTradeCard?.type === "callDiagonal" && <DiagonalCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} onGrade={() => gradeFromSpread(selectedTradeCard.spread, meta?.symbol ?? "", "callDiagonal")} />}
+        {selectedTradeCard?.type === "putDiagonal" && <DiagonalCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} onGrade={() => gradeFromSpread(selectedTradeCard.spread, meta?.symbol ?? "", "putDiagonal")} />}
+        {selectedTradeCard?.type === "ironCondor" && <IronCondorCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} onGrade={() => gradeFromSpread(selectedTradeCard.spread, meta?.symbol ?? "", "ironCondor")} />}
         {altTrade && <AltTradeCard option={altTrade} parsedLine={altTradeText} currentPrice={meta?.currentPrice ?? "0"} onGrade={() => gradeFromOption(altTrade, meta?.symbol ?? "")} />}
 
         {meta?.recentHeadlines && meta.recentHeadlines.length > 0 && (
