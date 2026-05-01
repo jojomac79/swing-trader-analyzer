@@ -264,15 +264,35 @@ function getPuts(options: TradierOptionContract[]) {
     .sort((a, b) => a.strike - b.strike);
 }
 
-function buildBullPutSpread(options: TradierOptionContract[], price: number, minGap = 0): LiveCreditSpread | null {
+// Choose wing width scaled to stock price and ATR
+// Avoids $5-wide spreads on $14 stocks (long leg worthless) or $5-wide on $500 stocks (meaningless)
+function chooseWingWidth(price: number, atr: number): number {
+  // Target: ~1x ATR wide, snapped to common strike increments
+  // Minimum $1 wide, maximum $20 wide
+  const raw = Math.max(atr * 1.0, 1);
+  // Snap to nearest: $1 for <$50, $2.50 for $50-$150, $5 for $150+
+  if (price < 50)  return Math.max(1,  Math.round(raw));
+  if (price < 150) return Math.max(2.5, Math.round(raw / 2.5) * 2.5);
+  return Math.max(5, Math.round(raw / 5) * 5);
+}
+
+function buildBullPutSpread(options: TradierOptionContract[], price: number, minGap = 0, atr = 0): LiveCreditSpread | null {
   const puts = getPuts(options);
   if (puts.length < 2) return null;
-  // Short put must be at least minGap below price (for condor safety)
-  const maxShortStrike = minGap > 0 ? price - minGap : price;
+
+  // Short put gap: for standalone spreads use 0.5x ATR min; condor passes its own minGap
+  const effectiveMinGap = minGap > 0 ? minGap : Math.max(atr * 0.5, 0);
+  const maxShortStrike = effectiveMinGap > 0 ? price - effectiveMinGap : price;
   const short = [...puts].reverse().find((p) => p.strike < maxShortStrike) ?? null;
   if (!short) return null;
-  const long = puts.find((p) => p.strike === short.strike - 5) ?? [...puts].reverse().find((p) => p.strike < short.strike) ?? null;
+
+  // Wing width: scale to price/ATR rather than hardcode $5
+  const wingWidth = atr > 0 ? chooseWingWidth(price, atr) : 5;
+  const long = puts.find((p) => p.strike === short.strike - wingWidth)
+    ?? puts.find((p) => p.strike === short.strike - 5)
+    ?? [...puts].reverse().find((p) => p.strike < short.strike) ?? null;
   if (!long) return null;
+
   const width = short.strike - long.strike;
   if (width <= 0) return null;
   const shortMid = (short.bid + short.ask) / 2, longMid = (long.bid + long.ask) / 2;
@@ -282,15 +302,21 @@ function buildBullPutSpread(options: TradierOptionContract[], price: number, min
   return { strategyType: "Bull Put Spread", expiration: "", shortStrike: short.strike, longStrike: long.strike, shortBid: short.bid, shortAsk: short.ask, longBid: long.bid, longAsk: long.ask, shortMid, longMid, netCredit, width, maxProfit: netCredit * 100, maxLoss: (width - netCredit) * 100, breakeven: short.strike - netCredit, pop, pop50: computePop50(pop), riskReward: Math.round((netCredit / (width - netCredit)) * 100) / 100 };
 }
 
-function buildBearCallSpread(options: TradierOptionContract[], price: number, minGap = 0): LiveCreditSpread | null {
+function buildBearCallSpread(options: TradierOptionContract[], price: number, minGap = 0, atr = 0): LiveCreditSpread | null {
   const calls = getCalls(options);
   if (calls.length < 2) return null;
-  // Short call must be at least minGap above price (for condor safety)
-  const minShortStrike = minGap > 0 ? price + minGap : price;
+
+  const effectiveMinGap = minGap > 0 ? minGap : Math.max(atr * 0.5, 0);
+  const minShortStrike = effectiveMinGap > 0 ? price + effectiveMinGap : price;
   const short = calls.find((c) => c.strike > minShortStrike) ?? null;
   if (!short) return null;
-  const long = calls.find((c) => c.strike === short.strike + 5) ?? calls.find((c) => c.strike > short.strike) ?? null;
+
+  const wingWidth = atr > 0 ? chooseWingWidth(price, atr) : 5;
+  const long = calls.find((c) => c.strike === short.strike + wingWidth)
+    ?? calls.find((c) => c.strike === short.strike + 5)
+    ?? calls.find((c) => c.strike > short.strike) ?? null;
   if (!long) return null;
+
   const width = long.strike - short.strike;
   if (width <= 0) return null;
   const shortMid = (short.bid + short.ask) / 2, longMid = (long.bid + long.ask) / 2;
@@ -300,12 +326,15 @@ function buildBearCallSpread(options: TradierOptionContract[], price: number, mi
   return { strategyType: "Bear Call Spread", expiration: "", shortStrike: short.strike, longStrike: long.strike, shortBid: short.bid, shortAsk: short.ask, longBid: long.bid, longAsk: long.ask, shortMid, longMid, netCredit, width, maxProfit: netCredit * 100, maxLoss: (width - netCredit) * 100, breakeven: short.strike + netCredit, pop, pop50: computePop50(pop), riskReward: Math.round((netCredit / (width - netCredit)) * 100) / 100 };
 }
 
-function buildCallDebitSpread(options: TradierOptionContract[], price: number): LiveDebitSpread | null {
+function buildCallDebitSpread(options: TradierOptionContract[], price: number, atr = 0): LiveDebitSpread | null {
   const calls = getCalls(options);
   if (calls.length < 2) return null;
   const long = calls.find((c) => c.strike >= price) ?? [...calls].reverse().find((c) => c.strike < price) ?? null;
   if (!long) return null;
-  const short = calls.find((c) => c.strike === long.strike + 5) ?? calls.find((c) => c.strike > long.strike) ?? null;
+  const wingWidth = atr > 0 ? chooseWingWidth(price, atr) : 5;
+  const short = calls.find((c) => c.strike === long.strike + wingWidth)
+    ?? calls.find((c) => c.strike === long.strike + 5)
+    ?? calls.find((c) => c.strike > long.strike) ?? null;
   if (!short) return null;
   const width = short.strike - long.strike;
   if (width <= 0) return null;
@@ -316,12 +345,15 @@ function buildCallDebitSpread(options: TradierOptionContract[], price: number): 
   return { strategyType: "Call Debit Spread", expiration: "", longStrike: long.strike, shortStrike: short.strike, longBid: long.bid, longAsk: long.ask, shortBid: short.bid, shortAsk: short.ask, longMid, shortMid, netDebit, width, maxProfit: (width - netDebit) * 100, maxLoss: netDebit * 100, breakeven: long.strike + netDebit, pop, pop50: computePop50(pop), riskReward: Math.round(((width - netDebit) / netDebit) * 100) / 100 };
 }
 
-function buildPutDebitSpread(options: TradierOptionContract[], price: number): LiveDebitSpread | null {
+function buildPutDebitSpread(options: TradierOptionContract[], price: number, atr = 0): LiveDebitSpread | null {
   const puts = getPuts(options);
   if (puts.length < 2) return null;
   const long = [...puts].reverse().find((p) => p.strike <= price) ?? puts.find((p) => p.strike > price) ?? null;
   if (!long) return null;
-  const short = puts.find((p) => p.strike === long.strike - 5) ?? [...puts].reverse().find((p) => p.strike < long.strike) ?? null;
+  const wingWidth = atr > 0 ? chooseWingWidth(price, atr) : 5;
+  const short = puts.find((p) => p.strike === long.strike - wingWidth)
+    ?? puts.find((p) => p.strike === long.strike - 5)
+    ?? [...puts].reverse().find((p) => p.strike < long.strike) ?? null;
   if (!short) return null;
   const width = long.strike - short.strike;
   if (width <= 0) return null;
@@ -930,15 +962,18 @@ export async function POST(req: Request) {
     }
 
     // ── Build strategies using appropriate expiration chains ─────────────────
+    const atrGap = techData?.atr14 ?? 0;
+    const condorMinGap = Math.max(atrGap * 1.0, 1);
+
     // Debit spreads: use debitOptions (21–50 DTE) to avoid theta crush
-    let liveCallDebit = debitExpiration && debitOptions.length ? buildCallDebitSpread(debitOptions, currentPriceNumber) : null;
-    let livePutDebit  = debitExpiration && debitOptions.length ? buildPutDebitSpread(debitOptions, currentPriceNumber) : null;
+    let liveCallDebit = debitExpiration && debitOptions.length ? buildCallDebitSpread(debitOptions, currentPriceNumber, atrGap) : null;
+    let livePutDebit  = debitExpiration && debitOptions.length ? buildPutDebitSpread(debitOptions, currentPriceNumber, atrGap) : null;
     if (liveCallDebit) liveCallDebit.expiration = debitExpiration!;
     if (livePutDebit)  livePutDebit.expiration  = debitExpiration!;
 
     // Credit spreads: use creditOptions (14–35 DTE) for optimal theta burn
-    let liveBullPut  = creditExpiration && creditOptions.length ? buildBullPutSpread(creditOptions, currentPriceNumber) : null;
-    let liveBearCall = creditExpiration && creditOptions.length ? buildBearCallSpread(creditOptions, currentPriceNumber) : null;
+    let liveBullPut  = creditExpiration && creditOptions.length ? buildBullPutSpread(creditOptions, currentPriceNumber, 0, atrGap) : null;
+    let liveBearCall = creditExpiration && creditOptions.length ? buildBearCallSpread(creditOptions, currentPriceNumber, 0, atrGap) : null;
     if (liveBullPut)  liveBullPut.expiration  = creditExpiration!;
     if (liveBearCall) liveBearCall.expiration = creditExpiration!;
 
@@ -949,10 +984,8 @@ export async function POST(req: Request) {
       ? buildPutDiagonal(nearOptions, farOptions, currentPriceNumber, nearExpiration, farExpiration) : null;
 
     // Iron Condor: credit expiration with ATR-based gap
-    const atrGap = techData?.atr14 ?? 0;
-    const condorMinGap = Math.max(atrGap * 1.0, 1);
-    const condorBullPut  = creditExpiration && creditOptions.length ? buildBullPutSpread(creditOptions, currentPriceNumber, condorMinGap) : null;
-    const condorBearCall = creditExpiration && creditOptions.length ? buildBearCallSpread(creditOptions, currentPriceNumber, condorMinGap) : null;
+    const condorBullPut  = creditExpiration && creditOptions.length ? buildBullPutSpread(creditOptions, currentPriceNumber, condorMinGap, atrGap) : null;
+    const condorBearCall = creditExpiration && creditOptions.length ? buildBearCallSpread(creditOptions, currentPriceNumber, condorMinGap, atrGap) : null;
     if (condorBullPut)  condorBullPut.expiration  = creditExpiration!;
     if (condorBearCall) condorBearCall.expiration = creditExpiration!;
     const liveIronCondor = buildIronCondor(condorBullPut, condorBearCall);
