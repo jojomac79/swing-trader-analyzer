@@ -1000,27 +1000,54 @@ export default function Home() {
     } finally { setGradeLoading(false); }
   };
 
-  // ── Grade This Trade — prefills grade form from a live strategy card ─────────
-  const gradeThisTrade = (ticker: string, legs: { action: "buy" | "sell"; type: "call" | "put" | "share"; strike: string; expiration: string; premium: string }[]) => {
-    // Switch to grade tab and reset results
+  // ── Grade This Trade — prefills grade form and auto-grades from a live strategy card ──
+  const gradeThisTrade = async (ticker: string, legs: { action: "buy" | "sell"; type: "call" | "put" | "share"; strike: string; expiration: string; premium: string }[]) => {
+    if (!isSignedIn) { setShowGoogleGate(true); return; }
+    if (!disclaimerAccepted) { setShowDisclaimer(true); return; }
+    if (showPaywall && !isPremium) { setShowUpgradeModal(true); return; }
+
+    // Switch to grade tab and pre-fill the form
     setActiveTab("grade");
     setResult(""); setMeta(null);
     setGradeResult(""); setGradeMeta(null); setGradeError("");
-    // Pre-fill ticker
     setGradeTicker(ticker);
-    // Pre-fill legs
     setGradeLegs(legs);
     setGradeNotes("");
-    // Reset expirations so Load Dates runs fresh for this ticker
     setExpirations([]); setStrikes([]); setLoadedExpiration(""); setExpSymbol("");
-    // Scroll to top
     window.scrollTo({ top: 0, behavior: "smooth" });
-    // Auto-load dates then auto-grade after a short delay
-    setTimeout(async () => {
-      await loadExpirations(ticker, true);
-      // Give a moment for state to settle then grade
-      setTimeout(() => { gradeMyTrade(); }, 800);
-    }, 300);
+
+    // Call the API directly with the legs we already have — don't rely on state settling
+    setGradeLoading(true);
+    try {
+      const legsPayload = legs.map(l => ({
+        action: l.action,
+        type: l.type,
+        strike: l.strike ? parseFloat(l.strike) : null,
+        expiration: l.expiration || null,
+        premium: l.premium ? parseFloat(l.premium) : null,
+      }));
+      const res = await fetch("/api/grade", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticker, legs: legsPayload, notes: "" }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (res.status === 403) {
+          if (data.limitType === "anon_limit") { setShowGoogleGate(true); return; }
+          if (data.limitType === "disclaimer_required") { setShowDisclaimer(true); return; }
+          setShowUpgradeModal(true); return;
+        }
+        if (res.status === 401) { setShowGoogleGate(true); return; }
+        throw new Error(data.error || "Failed to grade trade.");
+      }
+      setGradeResult(data.result ?? "");
+      setGradeMeta(data.meta ?? null);
+      // Also load expiration dates in background so the form is usable if they want to tweak
+      loadExpirations(ticker, true).catch(() => {});
+    } catch (err: unknown) {
+      setGradeError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally { setGradeLoading(false); }
   };
 
   const gradeFromSpread = (spread: LiveDebitSpread | LiveCreditSpread | LiveIronCondor | LiveDiagonalSpread, ticker: string) => {
