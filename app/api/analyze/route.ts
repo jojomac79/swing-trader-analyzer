@@ -874,12 +874,67 @@ export async function POST(req: Request) {
       liveIronCondor,
     });
 
+    // ── Quality gate — force No Trade when the best candidate isn't worth taking ──
+    const earningsDateParsed = nextEarnings !== "No upcoming earnings found in next 60 days"
+      ? new Date(nextEarnings) : null;
+    const nearExpDate = new Date(nearExpiration);
+    const earningsInsideWindow = earningsDateParsed !== null && earningsDateParsed <= nearExpDate;
+
+    const topCandidate = gatedCandidates[0] ?? null;
+
+    const noTradeReasons: string[] = [];
+
+    // 1. No candidates at all
+    if (!topCandidate) {
+      noTradeReasons.push("No valid strategy candidates found in current market regime.");
+    }
+
+    // 2. Score too low — best option is mediocre
+    if (topCandidate && topCandidate.score < 25) {
+      noTradeReasons.push(`Best candidate score (${topCandidate.score.toFixed(1)}) is too low — setup lacks conviction.`);
+    }
+
+    // 3. Iron condor credit too thin (< 15% of wing width)
+    if (topCandidate?.kind === "ironCondor" && liveIronCondor) {
+      const creditRatio = liveIronCondor.totalCredit / liveIronCondor.width;
+      if (creditRatio < 0.15) {
+        noTradeReasons.push(`Iron condor credit ($${liveIronCondor.totalCredit.toFixed(2)}) is only ${(creditRatio * 100).toFixed(0)}% of wing width — not enough premium to justify the risk.`);
+      }
+    }
+
+    // 4. Credit spread PoP below 60% — too risky
+    if (topCandidate?.kind === "bullPut" && liveBullPut?.pop != null && liveBullPut.pop < 60) {
+      noTradeReasons.push(`Bull put PoP (${liveBullPut.pop}%) is below 60% — short strike too close to price.`);
+    }
+    if (topCandidate?.kind === "bearCall" && liveBearCall?.pop != null && liveBearCall.pop < 60) {
+      noTradeReasons.push(`Bear call PoP (${liveBearCall.pop}%) is below 60% — short strike too close to price.`);
+    }
+
+    // 5. Earnings fall inside the expiration window — binary event risk
+    if (earningsInsideWindow && topCandidate) {
+      noTradeReasons.push(`Earnings on ${nextEarnings} fall inside the ${nearExpiration} expiration — binary event risk makes defined-outcome strategies unreliable.`);
+    }
+
+    // 6. Confidence too low to act even within the regime
+    if (biasSignal.confidence < 4 && biasSignal.regime !== "neutral") {
+      noTradeReasons.push(`Confidence (${biasSignal.confidence.toFixed(1)}/10) is too low to act directionally — wait for clearer signals.`);
+    }
+
+    const forceNoTrade = noTradeReasons.length > 0;
+
     const regimeLabel =
       biasSignal.regime === "trend" ? `TREND (confidence ${biasSignal.confidence.toFixed(1)}/10, ${biasSignal.trendStrength} trend) → directional plays only` :
       biasSignal.regime === "moderate" ? `MODERATE (confidence ${biasSignal.confidence.toFixed(1)}/10) → credit spreads preferred` :
       `NEUTRAL (confidence ${biasSignal.confidence.toFixed(1)}/10, weak trend) → condor / range plays`;
 
-    const gatedSection = gatedCandidates.length
+    const gatedSection = forceNoTrade
+      ? `MARKET REGIME: ${regimeLabel}
+
+QUALITY GATE: NO TRADE — do not recommend a strategy. Reasons:
+${noTradeReasons.map(r => `- ${r}`).join("\n")}
+
+Tell the user clearly why no trade is recommended and what they should wait for.`
+      : gatedCandidates.length
       ? `MARKET REGIME: ${regimeLabel}
 
 GATED STRATEGY SHORTLIST (scored within this regime only — pick from these):
@@ -905,15 +960,16 @@ ${gatedSection}
 ${buildStrategySection({ callDebit: liveCallDebit, putDebit: livePutDebit, bullPut: liveBullPut, bearCall: liveBearCall, callDiagonal: liveCallDiagonal, putDiagonal: livePutDiagonal, ironCondor: liveIronCondor, longCall: liveLongCall, longPut: liveLongPut })}
 
 STRATEGY SELECTION RULES:
-- The GATED STRATEGY SHORTLIST above is your menu. Pick from it — do not override the regime gate unless the shortlist is empty.
+- If the QUALITY GATE says NO TRADE, you MUST recommend No Trade. Do not override it. Explain clearly why.
+- If no quality gate, use the GATED STRATEGY SHORTLIST as your menu — pick from it only.
 - The #1 ranked strategy in the shortlist is strongly preferred. Only pick #2 or lower with a specific reason.
 - In TREND regime: debit spreads or diagonals only. Credit spreads are not appropriate here.
 - In MODERATE regime: credit spreads dominate. Diagonals are only a fallback if no credit spread exists.
 - In NEUTRAL regime: iron condor first. Credit spreads only if no condor is available.
 - Do not invent live pricing for strategies not shown in the live candidates section.
-- No Trade if the shortlist is empty or no live candidate exists.
 - Use headlines as context only.
 - If diagonal, note payoff is path-dependent.
+- No Trade is a valid and sometimes correct answer — never force a trade just because candidates exist.
 
 Format EXACTLY (no markdown bold on the first bullet of Overall Bias or Preferred Strategy):
 
