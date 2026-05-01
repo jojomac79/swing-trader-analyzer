@@ -296,16 +296,21 @@ function CollapsibleTradeSection({
   );
 }
 
-function AdvancedCardActions({ onTutorial }: { onTutorial: () => void }) {
+function AdvancedCardActions({ onTutorial, onGrade }: { onTutorial: () => void; onGrade?: () => void }) {
   return (
     <div style={styles.advancedCardActions}>
       <button onClick={onTutorial} style={styles.tutorialBtn}>📖 How it works</button>
+      {onGrade && (
+        <button onClick={onGrade} style={{ ...styles.tutorialBtn, background: "#6366f1", color: "#fff", border: "1px solid #6366f1", fontWeight: 700 }}>
+          🎯 Grade This Trade
+        </button>
+      )}
     </div>
   );
 }
 
 
-function DebitCard({ spread, currentPrice, onTutorial }: { spread: LiveDebitSpread; currentPrice: string; onTutorial: () => void }) {
+function DebitCard({ spread, currentPrice, onTutorial, onGrade }: { spread: LiveDebitSpread; currentPrice: string; onTutorial: () => void; onGrade?: () => void }) {
   const longLabel = spread.strategyType === "Call Debit Spread" ? "Long Call" : "Long Put";
   const shortLabel = spread.strategyType === "Call Debit Spread" ? "Short Call" : "Short Put";
   const price = parseFloat(currentPrice);
@@ -321,7 +326,7 @@ function DebitCard({ spread, currentPrice, onTutorial }: { spread: LiveDebitSpre
       badgeStyle={{ background: "#1e3a5f", color: "#93c5fd" }}
     >
       <div style={styles.tradeCard}>
-        <AdvancedCardActions onTutorial={onTutorial} />
+        <AdvancedCardActions onTutorial={onTutorial} onGrade={onGrade} />
         <div style={styles.tradeGrid}>
           <div><strong>Strategy</strong><br />{spread.strategyType}</div>
           <div><strong>Expiration</strong><br />{spread.expiration}</div>
@@ -352,7 +357,7 @@ function DebitCard({ spread, currentPrice, onTutorial }: { spread: LiveDebitSpre
 }
 
 
-function CreditCard({ spread, currentPrice, onTutorial }: { spread: LiveCreditSpread; currentPrice: string; onTutorial: () => void }) {
+function CreditCard({ spread, currentPrice, onTutorial, onGrade }: { spread: LiveCreditSpread; currentPrice: string; onTutorial: () => void; onGrade?: () => void }) {
   const shortLabel = spread.strategyType === "Bull Put Spread" ? "Short Put" : "Short Call";
   const longLabel = spread.strategyType === "Bull Put Spread" ? "Long Put" : "Long Call";
   const sideLabel = spread.strategyType === "Bull Put Spread" ? "Put Side" : "Call Side";
@@ -369,7 +374,7 @@ function CreditCard({ spread, currentPrice, onTutorial }: { spread: LiveCreditSp
       badgeStyle={{ background: "#1e3a5f", color: "#93c5fd" }}
     >
       <div style={styles.tradeCard}>
-        <AdvancedCardActions onTutorial={onTutorial} />
+        <AdvancedCardActions onTutorial={onTutorial} onGrade={onGrade} />
         <div style={styles.tradeGrid}>
           <div><strong>Strategy</strong><br />{spread.strategyType}</div>
           <div><strong>Expiration</strong><br />{spread.expiration}</div>
@@ -407,7 +412,7 @@ function CreditCard({ spread, currentPrice, onTutorial }: { spread: LiveCreditSp
 }
 
 
-function DiagonalCard({ spread, currentPrice, onTutorial }: { spread: LiveDiagonalSpread; currentPrice: string; onTutorial: () => void }) {
+function DiagonalCard({ spread, currentPrice, onTutorial, onGrade }: { spread: LiveDiagonalSpread; currentPrice: string; onTutorial: () => void; onGrade?: () => void }) {
   const longLabel = spread.strategyType === "Call Diagonal" ? "Far Long Call" : "Far Long Put";
   const shortLabel = spread.strategyType === "Call Diagonal" ? "Near Short Call" : "Near Short Put";
   const price = parseFloat(currentPrice);
@@ -423,7 +428,7 @@ function DiagonalCard({ spread, currentPrice, onTutorial }: { spread: LiveDiagon
       badgeStyle={{ background: "#1e3a5f", color: "#93c5fd" }}
     >
       <div style={styles.tradeCard}>
-        <AdvancedCardActions onTutorial={onTutorial} />
+        <AdvancedCardActions onTutorial={onTutorial} onGrade={onGrade} />
         <div style={styles.tradeGrid}>
           <div><strong>Strategy</strong><br />{spread.strategyType}</div>
           <div><strong>Near Exp</strong><br />{spread.nearExpiration}</div>
@@ -452,7 +457,7 @@ function DiagonalCard({ spread, currentPrice, onTutorial }: { spread: LiveDiagon
 }
 
 
-function IronCondorCard({ spread, currentPrice, onTutorial }: { spread: LiveIronCondor; currentPrice: string; onTutorial: () => void }) {
+function IronCondorCard({ spread, currentPrice, onTutorial, onGrade }: { spread: LiveIronCondor; currentPrice: string; onTutorial: () => void; onGrade?: () => void }) {
   const price = parseFloat(currentPrice);
   const lowerStop = (price * 0.95).toFixed(2);
   const upperStop = (price * 1.05).toFixed(2);
@@ -467,7 +472,7 @@ function IronCondorCard({ spread, currentPrice, onTutorial }: { spread: LiveIron
       badgeStyle={{ background: "#1e3a5f", color: "#93c5fd" }}
     >
       <div style={styles.tradeCard}>
-        <AdvancedCardActions onTutorial={onTutorial} />
+        <AdvancedCardActions onTutorial={onTutorial} onGrade={onGrade} />
         <div style={styles.tradeGrid}>
           <div><strong>Strategy</strong><br />{spread.strategyType}</div>
           <div><strong>Expiration</strong><br />{spread.expiration}</div>
@@ -654,7 +659,7 @@ function BeginnerCard({ bias, symbol, currentPrice }: { bias: "Bullish" | "Beari
 }
 
 
-function AltTradeCard({ option, parsedLine, currentPrice }: { option: LiveLongOption; parsedLine: string | null; currentPrice: string }) {
+function AltTradeCard({ option, parsedLine, currentPrice, onGrade }: { option: LiveLongOption; parsedLine: string | null; currentPrice: string; onGrade?: () => void }) {
   const price = parseFloat(currentPrice);
   const stopLoss = option.strategyType === "Long Call" ? (price * 0.95).toFixed(2) : (price * 1.05).toFixed(2);
 
@@ -678,6 +683,11 @@ function AltTradeCard({ option, parsedLine, currentPrice }: { option: LiveLongOp
           <div><strong>Max Risk</strong><br />${option.maxRisk.toFixed(2)}</div>
           <div><strong>Stop Loss (Underlying)</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${stopLoss}</span></div>
         </div>
+        {onGrade && (
+          <button onClick={onGrade} style={{ marginTop: "14px", width: "100%", padding: "11px", borderRadius: "10px", border: "1px solid #6366f1", background: "#1e1b4b", color: "#a5b4fc", cursor: "pointer", fontSize: "0.9rem", fontWeight: 700 }}>
+            🎯 Grade This Trade
+          </button>
+        )}
       </div>
     </CollapsibleTradeSection>
   );
@@ -988,6 +998,77 @@ export default function Home() {
     } catch (err: unknown) {
       setGradeError(err instanceof Error ? err.message : "Something went wrong.");
     } finally { setGradeLoading(false); }
+  };
+
+  // ── Grade This Trade — prefills grade form from a live strategy card ─────────
+  const gradeThisTrade = (ticker: string, legs: { action: "buy" | "sell"; type: "call" | "put" | "share"; strike: string; expiration: string; premium: string }[]) => {
+    // Switch to grade tab and reset results
+    setActiveTab("grade");
+    setResult(""); setMeta(null);
+    setGradeResult(""); setGradeMeta(null); setGradeError("");
+    // Pre-fill ticker
+    setGradeTicker(ticker);
+    // Pre-fill legs
+    setGradeLegs(legs);
+    setGradeNotes("");
+    // Reset expirations so Load Dates runs fresh for this ticker
+    setExpirations([]); setStrikes([]); setLoadedExpiration(""); setExpSymbol("");
+    // Scroll to top
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    // Auto-load dates then auto-grade after a short delay
+    setTimeout(async () => {
+      await loadExpirations(ticker, true);
+      // Give a moment for state to settle then grade
+      setTimeout(() => { gradeMyTrade(); }, 800);
+    }, 300);
+  };
+
+  const gradeFromSpread = (spread: LiveDebitSpread | LiveCreditSpread | LiveIronCondor | LiveDiagonalSpread, ticker: string) => {
+    let legs: { action: "buy" | "sell"; type: "call" | "put" | "share"; strike: string; expiration: string; premium: string }[] = [];
+
+    if ("netDebit" in spread && "longStrike" in spread && !("nearExpiration" in spread)) {
+      // Debit spread
+      const s = spread as LiveDebitSpread;
+      const isCall = s.strategyType === "Call Debit Spread";
+      legs = [
+        { action: "buy", type: isCall ? "call" : "put", strike: s.longStrike.toString(), expiration: s.expiration, premium: s.longMid.toFixed(2) },
+        { action: "sell", type: isCall ? "call" : "put", strike: s.shortStrike.toString(), expiration: s.expiration, premium: s.shortMid.toFixed(2) },
+      ];
+    } else if ("netCredit" in spread && "shortStrike" in spread) {
+      // Credit spread
+      const s = spread as LiveCreditSpread;
+      const isCall = s.strategyType === "Bear Call Spread";
+      legs = [
+        { action: "sell", type: isCall ? "call" : "put", strike: s.shortStrike.toString(), expiration: s.expiration, premium: s.shortMid.toFixed(2) },
+        { action: "buy", type: isCall ? "call" : "put", strike: s.longStrike.toString(), expiration: s.expiration, premium: s.longMid.toFixed(2) },
+      ];
+    } else if ("totalCredit" in spread) {
+      // Iron condor
+      const s = spread as LiveIronCondor;
+      legs = [
+        { action: "sell", type: "put", strike: s.putShortStrike.toString(), expiration: s.expiration, premium: "" },
+        { action: "buy", type: "put", strike: s.putLongStrike.toString(), expiration: s.expiration, premium: "" },
+        { action: "sell", type: "call", strike: s.callShortStrike.toString(), expiration: s.expiration, premium: "" },
+        { action: "buy", type: "call", strike: s.callLongStrike.toString(), expiration: s.expiration, premium: "" },
+      ];
+    } else if ("nearExpiration" in spread) {
+      // Diagonal
+      const s = spread as LiveDiagonalSpread;
+      const isCall = s.strategyType === "Call Diagonal";
+      legs = [
+        { action: "buy", type: isCall ? "call" : "put", strike: s.longStrike.toString(), expiration: s.farExpiration, premium: s.longMid.toFixed(2) },
+        { action: "sell", type: isCall ? "call" : "put", strike: s.shortStrike.toString(), expiration: s.nearExpiration, premium: s.shortMid.toFixed(2) },
+      ];
+    }
+
+    if (legs.length > 0) gradeThisTrade(ticker, legs);
+  };
+
+  const gradeFromOption = (option: LiveLongOption, ticker: string) => {
+    const isCall = option.strategyType === "Long Call";
+    gradeThisTrade(ticker, [
+      { action: "buy", type: isCall ? "call" : "put", strike: option.strike.toString(), expiration: option.expiration, premium: option.mid.toFixed(2) },
+    ]);
   };
 
   const handleManageSubscription = async () => {
@@ -1475,14 +1556,14 @@ export default function Home() {
             <span><strong>No Trade recommended</strong> — setup doesn't meet quality criteria. The card below shows the best available live structure for reference only. Read the full analysis before acting.</span>
           </div>
         )}
-        {selectedTradeCard?.type === "callDebit" && <DebitCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} />}
-        {selectedTradeCard?.type === "putDebit" && <DebitCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} />}
-        {selectedTradeCard?.type === "bullPut" && <CreditCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} />}
-        {selectedTradeCard?.type === "bearCall" && <CreditCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} />}
-        {selectedTradeCard?.type === "callDiagonal" && <DiagonalCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} />}
-        {selectedTradeCard?.type === "putDiagonal" && <DiagonalCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} />}
-        {selectedTradeCard?.type === "ironCondor" && <IronCondorCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} />}
-        {altTrade && <AltTradeCard option={altTrade} parsedLine={altTradeText} currentPrice={meta?.currentPrice ?? "0"} />}
+        {selectedTradeCard?.type === "callDebit" && <DebitCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} onGrade={() => gradeFromSpread(selectedTradeCard.spread, meta?.symbol ?? "")} />}
+        {selectedTradeCard?.type === "putDebit" && <DebitCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} onGrade={() => gradeFromSpread(selectedTradeCard.spread, meta?.symbol ?? "")} />}
+        {selectedTradeCard?.type === "bullPut" && <CreditCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} onGrade={() => gradeFromSpread(selectedTradeCard.spread, meta?.symbol ?? "")} />}
+        {selectedTradeCard?.type === "bearCall" && <CreditCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} onGrade={() => gradeFromSpread(selectedTradeCard.spread, meta?.symbol ?? "")} />}
+        {selectedTradeCard?.type === "callDiagonal" && <DiagonalCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} onGrade={() => gradeFromSpread(selectedTradeCard.spread, meta?.symbol ?? "")} />}
+        {selectedTradeCard?.type === "putDiagonal" && <DiagonalCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} onGrade={() => gradeFromSpread(selectedTradeCard.spread, meta?.symbol ?? "")} />}
+        {selectedTradeCard?.type === "ironCondor" && <IronCondorCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} onGrade={() => gradeFromSpread(selectedTradeCard.spread, meta?.symbol ?? "")} />}
+        {altTrade && <AltTradeCard option={altTrade} parsedLine={altTradeText} currentPrice={meta?.currentPrice ?? "0"} onGrade={() => gradeFromOption(altTrade, meta?.symbol ?? "")} />}
 
         {meta?.recentHeadlines && meta.recentHeadlines.length > 0 && (
           <div style={styles.headlinesCard}>
