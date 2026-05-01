@@ -199,10 +199,12 @@ function getPuts(options: TradierOptionContract[]) {
     .sort((a, b) => a.strike - b.strike);
 }
 
-function buildBullPutSpread(options: TradierOptionContract[], price: number): LiveCreditSpread | null {
+function buildBullPutSpread(options: TradierOptionContract[], price: number, minGap = 0): LiveCreditSpread | null {
   const puts = getPuts(options);
   if (puts.length < 2) return null;
-  const short = [...puts].reverse().find((p) => p.strike < price) ?? null;
+  // Short put must be at least minGap below price (for condor safety)
+  const maxShortStrike = minGap > 0 ? price - minGap : price;
+  const short = [...puts].reverse().find((p) => p.strike < maxShortStrike) ?? null;
   if (!short) return null;
   const long = puts.find((p) => p.strike === short.strike - 5) ?? [...puts].reverse().find((p) => p.strike < short.strike) ?? null;
   if (!long) return null;
@@ -215,10 +217,12 @@ function buildBullPutSpread(options: TradierOptionContract[], price: number): Li
   return { strategyType: "Bull Put Spread", expiration: "", shortStrike: short.strike, longStrike: long.strike, shortBid: short.bid, shortAsk: short.ask, longBid: long.bid, longAsk: long.ask, shortMid, longMid, netCredit, width, maxProfit: netCredit * 100, maxLoss: (width - netCredit) * 100, breakeven: short.strike - netCredit, pop, pop50: computePop50(pop), riskReward: Math.round((netCredit / (width - netCredit)) * 100) / 100 };
 }
 
-function buildBearCallSpread(options: TradierOptionContract[], price: number): LiveCreditSpread | null {
+function buildBearCallSpread(options: TradierOptionContract[], price: number, minGap = 0): LiveCreditSpread | null {
   const calls = getCalls(options);
   if (calls.length < 2) return null;
-  const short = calls.find((c) => c.strike > price) ?? null;
+  // Short call must be at least minGap above price (for condor safety)
+  const minShortStrike = minGap > 0 ? price + minGap : price;
+  const short = calls.find((c) => c.strike > minShortStrike) ?? null;
   if (!short) return null;
   const long = calls.find((c) => c.strike === short.strike + 5) ?? calls.find((c) => c.strike > short.strike) ?? null;
   if (!long) return null;
@@ -822,6 +826,7 @@ export async function POST(req: Request) {
 
     let liveCallDebit = buildCallDebitSpread(nearOptions, currentPriceNumber);
     let livePutDebit  = buildPutDebitSpread(nearOptions, currentPriceNumber);
+    // Standalone credit spreads — no minimum gap required
     let liveBullPut   = buildBullPutSpread(nearOptions, currentPriceNumber);
     let liveBearCall  = buildBearCallSpread(nearOptions, currentPriceNumber);
     if (liveCallDebit) liveCallDebit.expiration = nearExpiration;
@@ -831,9 +836,19 @@ export async function POST(req: Request) {
 
     const liveCallDiagonal = farExpiration && farOptions.length ? buildCallDiagonal(nearOptions, farOptions, currentPriceNumber, nearExpiration, farExpiration) : null;
     const livePutDiagonal  = farExpiration && farOptions.length ? buildPutDiagonal(nearOptions, farOptions, currentPriceNumber, nearExpiration, farExpiration) : null;
-    const liveIronCondor   = buildIronCondor(liveBullPut, liveBearCall);
-    const liveLongCall     = buildLongCall(nearOptions, currentPriceNumber, nearExpiration);
-    const liveLongPut      = buildLongPut(nearOptions, currentPriceNumber, nearExpiration);
+
+    // Iron Condor: use wider short strikes — at least 1x ATR away from price on each side
+    // This prevents dangerously tight condors on volatile stocks
+    const atrGap = techData?.atr14 ?? 0;
+    const condorMinGap = Math.max(atrGap * 1.0, 1); // at least 1x ATR, minimum $1
+    const condorBullPut  = buildBullPutSpread(nearOptions, currentPriceNumber, condorMinGap);
+    const condorBearCall = buildBearCallSpread(nearOptions, currentPriceNumber, condorMinGap);
+    if (condorBullPut)  condorBullPut.expiration  = nearExpiration;
+    if (condorBearCall) condorBearCall.expiration = nearExpiration;
+    const liveIronCondor = buildIronCondor(condorBullPut, condorBearCall);
+
+    const liveLongCall = buildLongCall(nearOptions, currentPriceNumber, nearExpiration);
+    const liveLongPut  = buildLongPut(nearOptions, currentPriceNumber, nearExpiration);
 
     const resolutionSection = resolved.resolvedFromName
       ? `Input Resolved:\n- Original: ${resolved.originalInput}\n- Ticker: ${symbol}\n- Company: ${resolved.resolvedDisplayName ?? "Unknown"}`
