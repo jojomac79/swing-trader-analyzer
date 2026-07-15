@@ -3,15 +3,14 @@ import { auth } from "@/auth";
 
 type FinnhubSearchResult = { description?: string; displaySymbol?: string; symbol?: string; type?: string };
 type FinnhubSearchResponse = { count?: number; result?: FinnhubSearchResult[] };
-type TradierExpirationsResponse = { expirations?: { date?: string[] | string } };
-type TradierOptionContract = {
-  symbol?: string;
-  option_type?: "put" | "call";
-  strike?: number | string;
-  bid?: number | string | null;
-  ask?: number | string | null;
-};
-type TradierChainResponse = { options?: { option?: TradierOptionContract[] | TradierOptionContract } };
+
+// Tastytrade types
+type TTNestedStrike = { "strike-price": string; call: string; put: string };
+type TTNestedExpiration = { "expiration-date": string; "days-to-expiration": number; strikes: TTNestedStrike[] };
+type TTNestedChainItem = { "underlying-symbol": string; expirations: TTNestedExpiration[] };
+type TTNestedResponse = { data: { items: TTNestedChainItem[] } };
+type TTMarketDataItem = { symbol: string; bid?: string | number; ask?: string | number; delta?: string | number };
+type TTMarketDataResponse = { data: { items: TTMarketDataItem[] } };
 
 export type OptionStrike = {
   strike: number;
@@ -83,39 +82,31 @@ async function resolveToSymbol(rawInput: string, finnhubKey: string): Promise<st
   return best.symbol;
 }
 
-function normalizeExpirations(data: TradierExpirationsResponse): string[] {
-  const raw = data.expirations?.date;
-  if (!raw) return [];
-  return Array.isArray(raw) ? raw : [raw];
-}
+const TASTY_BASE = "https://api.tastytrade.com";
+let cachedTTSession: { token: string; expiresAt: number } | null = null;
 
-function toNum(v: unknown): number | null {
-  if (typeof v === "number" && isFinite(v)) return v;
-  if (typeof v === "string") { const n = Number(v); return isFinite(n) ? n : null; }
-  return null;
-}
-
-function normalizeChain(data: TradierChainResponse): TradierOptionContract[] {
-  const raw = data.options?.option;
-  if (!raw) return [];
-  return Array.isArray(raw) ? raw : [raw];
-}
-
-function buildStrikeMap(contracts: TradierOptionContract[]): OptionStrike[] {
-  const map = new Map<number, OptionStrike>();
-  for (const c of contracts) {
-    const strike = toNum(c.strike);
-    if (strike === null) continue;
-    const bid = toNum(c.bid) ?? 0;
-    const ask = toNum(c.ask) ?? 0;
-    if (bid < 0 || ask < bid) continue;
-    const mid = Math.round(((bid + ask) / 2) * 100) / 100;
-    if (!map.has(strike)) map.set(strike, { strike, call: null, put: null });
-    const entry = map.get(strike)!;
-    if (c.option_type === "call") entry.call = { bid, ask, mid };
-    if (c.option_type === "put") entry.put = { bid, ask, mid };
-  }
-  return [...map.values()].sort((a, b) => a.strike - b.strike);
+async function getTTSessionToken(): Promise<string> {
+  const now = Date.now();
+  if (cachedTTSession && cachedTTSession.expiresAt > now + 60_000) return cachedTTSession.token;
+  const clientSecret = process.env.TASTYTRADE_CLIENT_SECRET;
+  const refreshToken = process.env.TASTYTRADE_REFRESH_TOKEN;
+  if (!clientSecret || !refreshToken) throw new Error("Missing TASTYTRADE_CLIENT_SECRET or TASTYTRADE_REFRESH_TOKEN");
+  const res = await fetch(`${TASTY_BASE}/oauth/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+      client_secret: clientSecret,
+    }).toString(),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Tastytrade OAuth failed: ${res.status}`);
+  const data = (await res.json()) as { access_token: string; expires_in?: number };
+  const token = data.access_token;
+  const expiresIn = (data.expires_in ?? 900) * 1000;
+  cachedTTSession = { token, expiresAt: now + expiresIn - 60_000 };
+  return token;
 }
 
 export async function GET(req: Request) {
@@ -127,46 +118,88 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const ticker = searchParams.get("ticker");
-    const expiration = searchParams.get("expiration"); // optional — fetch chain for this specific exp
+    const expiration = searchParams.get("expiration");
 
     if (!ticker) return NextResponse.json({ error: "Ticker required." }, { status: 400 });
 
     const finnhubKey = process.env.FINNHUB_API_KEY;
-    const tradierKey = process.env.TRADIER_API_KEY;
-    if (!finnhubKey || !tradierKey) {
-      return NextResponse.json({ error: "Missing API keys." }, { status: 500 });
+    if (!finnhubKey) return NextResponse.json({ error: "Missing FINNHUB_API_KEY." }, { status: 500 });
+    if (!process.env.TASTYTRADE_CLIENT_SECRET || !process.env.TASTYTRADE_REFRESH_TOKEN) {
+      return NextResponse.json({ error: "Missing Tastytrade credentials." }, { status: 500 });
     }
 
     const symbol = await resolveToSymbol(ticker, finnhubKey);
-    const sym = encodeURIComponent(symbol);
+    const ttToken = await getTTSessionToken();
 
-    // ── Fetch expirations ─────────────────────────────────────────────────────
-    const expRes = await fetch(
-      `https://api.tradier.com/v1/markets/options/expirations?symbol=${sym}&includeAllRoots=true`,
-      { headers: { Authorization: `Bearer ${tradierKey}`, Accept: "application/json" }, cache: "no-store" }
-    );
-    if (!expRes.ok) {
-      return NextResponse.json({ error: `Could not fetch expirations for ${symbol}.` }, { status: 500 });
+    // Fetch full nested chain (all expirations + strikes)
+    const chainRes = await fetch(`${TASTY_BASE}/option-chains/${encodeURIComponent(symbol)}/nested`, {
+      headers: { Authorization: ttToken, Accept: "application/json" },
+      cache: "no-store",
+    });
+    if (!chainRes.ok) {
+      return NextResponse.json({ error: `Could not fetch options for ${symbol}.` }, { status: 500 });
     }
-    const today = new Date().toISOString().slice(0, 10);
-    const expirations = normalizeExpirations((await expRes.json()) as TradierExpirationsResponse)
-      .filter((d) => d >= today);
 
-    // ── Fetch options chain for the requested (or nearest) expiration ─────────
-    const targetExp = expiration ?? expirations[0] ?? null;
+    const chainData = (await chainRes.json()) as TTNestedResponse;
+    const allExpirations: TTNestedExpiration[] = chainData.data?.items?.[0]?.expirations ?? [];
+
+    const today = new Date().toISOString().slice(0, 10);
+    const futureExps = allExpirations.filter(e => e["expiration-date"] >= today);
+    const expirationDates = futureExps.map(e => e["expiration-date"]);
+
+    if (!expirationDates.length) {
+      return NextResponse.json({ error: `No options found for ${symbol}.` }, { status: 500 });
+    }
+
+    // Get chain for the requested (or nearest) expiration
+    const targetExp = expiration ?? expirationDates[0];
+    const expData = futureExps.find(e => e["expiration-date"] === targetExp);
+
     let strikes: OptionStrike[] = [];
 
-    if (targetExp) {
-      const chainRes = await fetch(
-        `https://api.tradier.com/v1/markets/options/chains?symbol=${sym}&expiration=${encodeURIComponent(targetExp)}&greeks=false`,
-        { headers: { Authorization: `Bearer ${tradierKey}`, Accept: "application/json" }, cache: "no-store" }
+    if (expData?.strikes.length) {
+      // Collect all OCC symbols for this expiration to quote
+      const occSymbols = expData.strikes.flatMap(s => [s.call, s.put]).slice(0, 200);
+
+      // Fetch quotes
+      const params = occSymbols.map(s => `symbols[]=${encodeURIComponent(s)}`).join("&");
+      const quoteRes = await fetch(
+        `${TASTY_BASE}/market-data/by-type?instrument-type=Equity%20Option&${params}`,
+        { headers: { Authorization: ttToken, Accept: "application/json" }, cache: "no-store" }
       );
-      if (chainRes.ok) {
-        strikes = buildStrikeMap(normalizeChain((await chainRes.json()) as TradierChainResponse));
+
+      const quoteMap = new Map<string, TTMarketDataItem>();
+      if (quoteRes.ok) {
+        const quoteData = (await quoteRes.json()) as TTMarketDataResponse;
+        for (const item of quoteData.data?.items ?? []) {
+          if (item.symbol) quoteMap.set(item.symbol, item);
+        }
       }
+
+      // Build strike map
+      const strikeMap = new Map<number, OptionStrike>();
+      for (const s of expData.strikes) {
+        const strikeNum = parseFloat(s["strike-price"]);
+        if (!strikeMap.has(strikeNum)) strikeMap.set(strikeNum, { strike: strikeNum, call: null, put: null });
+        const entry = strikeMap.get(strikeNum)!;
+
+        for (const side of ["call", "put"] as const) {
+          const q = quoteMap.get(s[side]);
+          if (q) {
+            const bid = parseFloat(String(q.bid ?? 0));
+            const ask = parseFloat(String(q.ask ?? 0));
+            if (ask >= bid && bid >= 0) {
+              const mid = Math.round(((bid + ask) / 2) * 100) / 100;
+              entry[side] = { bid, ask, mid };
+            }
+          }
+        }
+      }
+
+      strikes = [...strikeMap.values()].sort((a, b) => a.strike - b.strike);
     }
 
-    return NextResponse.json({ symbol, expirations, strikes, loadedExpiration: targetExp });
+    return NextResponse.json({ symbol, expirations: expirationDates, strikes, loadedExpiration: targetExp });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Something went wrong." },
