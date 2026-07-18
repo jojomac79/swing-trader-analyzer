@@ -249,14 +249,22 @@ function inferTradeType(legs: TradeLeg[]): string {
       return "Diagonal Spread";
     }
 
-    // Same expiration — standard vertical spreads
-    if (types.every(t => t === "call")) {
-      if (actions[0] === "buy" && actions[1] === "sell") return "Call Debit Spread";
-      if (actions[0] === "sell" && actions[1] === "buy") return "Bear Call Spread";
-    }
-    if (types.every(t => t === "put")) {
-      if (actions[0] === "buy" && actions[1] === "sell") return "Put Debit Spread";
-      if (actions[0] === "sell" && actions[1] === "buy") return "Bull Put Spread";
+    // Same expiration — standard vertical spreads.
+    // Classify by strike relationship between the buy/sell legs, NOT by
+    // which leg slot the user happened to put "Buy" vs "Sell" in.
+    const buyLeg = legs.find(l => l.action === "buy");
+    const sellLeg = legs.find(l => l.action === "sell");
+    if (buyLeg && sellLeg && buyLeg.strike != null && sellLeg.strike != null) {
+      const buyStrike = Number(buyLeg.strike);
+      const sellStrike = Number(sellLeg.strike);
+      if (types.every(t => t === "call")) {
+        if (buyStrike < sellStrike) return "Call Debit Spread";
+        if (buyStrike > sellStrike) return "Bear Call Spread";
+      }
+      if (types.every(t => t === "put")) {
+        if (buyStrike > sellStrike) return "Put Debit Spread";
+        if (buyStrike < sellStrike) return "Bull Put Spread";
+      }
     }
   }
   if (legs.length === 4) return "Iron Condor / Combo";
