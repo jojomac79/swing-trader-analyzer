@@ -851,6 +851,7 @@ export default function Home() {
   };
   const [upgradeSheetOffset, setUpgradeSheetOffset] = useState(0);
   const upgradeSheetStartY = useRef<number | null>(null);
+  const resultCardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isSignedIn) return;
@@ -1567,7 +1568,10 @@ export default function Home() {
           </div>
         )}
 
-        {result && <TradeSummaryCard bias={bias} confidence={confidenceScore} strategy={preferredStrategy} target={tradeTarget} invalidate={tradeInvalidate} onViewAnalysis={() => setShowFullAnalysis(v => !v)} />}
+        {result && <TradeSummaryCard bias={bias} confidence={confidenceScore} strategy={preferredStrategy} target={tradeTarget} invalidate={tradeInvalidate} onViewAnalysis={() => {
+          setShowFullAnalysis(true);
+          resultCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }} />}
 
         {meta?.tradeFilters && <TradeFiltersCard filters={meta.tradeFilters} />}
 
@@ -1605,7 +1609,7 @@ export default function Home() {
         )}
 
         {result && (
-          <div style={styles.resultCard}>
+          <div style={styles.resultCard} ref={resultCardRef}>
             <div style={styles.resultHeader}>
               <h2 style={styles.cardTitle}>Swing Trade Analysis</h2>
               <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
