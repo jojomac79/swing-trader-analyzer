@@ -659,9 +659,15 @@ function BeginnerCard({ bias, symbol, currentPrice }: { bias: "Bullish" | "Beari
 }
 
 
-function AltTradeCard({ option, parsedLine, currentPrice, onGrade }: { option: LiveLongOption; parsedLine: string | null; currentPrice: string; onGrade?: () => void }) {
+function AltTradeCard({ option, parsedLine, currentPrice, onGrade, conversionSpread }: { option: LiveLongOption; parsedLine: string | null; currentPrice: string; onGrade?: () => void; conversionSpread?: LiveDebitSpread | null }) {
   const price = parseFloat(currentPrice);
   const stopLoss = option.strategyType === "Long Call" ? (price * 0.95).toFixed(2) : (price * 1.05).toFixed(2);
+
+  // Only show the debit-spread conversion note when the spread's long leg is
+  // actually the same strike as this long option — both are picked by the
+  // same nearest-to-price logic off the same chain, so this should hold in
+  // practice, but we guard it rather than assume.
+  const canConvert = !!conversionSpread && conversionSpread.longStrike === option.strike;
 
   return (
     <CollapsibleTradeSection
@@ -683,6 +689,11 @@ function AltTradeCard({ option, parsedLine, currentPrice, onGrade }: { option: L
           <div><strong>Max Risk</strong><br />${option.maxRisk.toFixed(2)}</div>
           <div><strong>Stop Loss (Underlying)</strong><br /><span style={{ color: "#ef4444", fontWeight: 700 }}>${stopLoss}</span></div>
         </div>
+        {canConvert && conversionSpread && (
+          <div style={styles.altTradeConvertNote}>
+            Note: If this is too much exposure, you can additionally sell the <strong>${conversionSpread.shortStrike}</strong> strike (same expiration) to convert this into a {conversionSpread.strategyType} for max profit <strong>${conversionSpread.maxProfit.toFixed(2)}</strong> / max loss <strong>${conversionSpread.maxLoss.toFixed(2)}</strong>.
+          </div>
+        )}
         {onGrade && (
           <button onClick={onGrade} style={{ marginTop: "14px", width: "100%", padding: "11px", borderRadius: "10px", border: "1px solid #6366f1", background: "#1e1b4b", color: "#a5b4fc", cursor: "pointer", fontSize: "0.9rem", fontWeight: 700 }}>
             🎯 Grade This Trade
@@ -1614,7 +1625,7 @@ export default function Home() {
         {selectedTradeCard?.type === "callDiagonal" && <DiagonalCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} onGrade={() => gradeFromSpread(selectedTradeCard.spread, meta?.symbol ?? "", "callDiagonal")} />}
         {selectedTradeCard?.type === "putDiagonal" && <DiagonalCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} onGrade={() => gradeFromSpread(selectedTradeCard.spread, meta?.symbol ?? "", "putDiagonal")} />}
         {selectedTradeCard?.type === "ironCondor" && <IronCondorCard spread={selectedTradeCard.spread} currentPrice={meta?.currentPrice ?? "0"} onTutorial={() => setShowTutorial(true)} onGrade={() => gradeFromSpread(selectedTradeCard.spread, meta?.symbol ?? "", "ironCondor")} />}
-        {altTrade && <AltTradeCard option={altTrade} parsedLine={altTradeText} currentPrice={meta?.currentPrice ?? "0"} onGrade={() => gradeFromOption(altTrade, meta?.symbol ?? "")} />}
+        {altTrade && <AltTradeCard option={altTrade} parsedLine={altTradeText} currentPrice={meta?.currentPrice ?? "0"} onGrade={() => gradeFromOption(altTrade, meta?.symbol ?? "")} conversionSpread={altTrade.strategyType === "Long Call" ? meta?.liveCallDebit : meta?.livePutDebit} />}
 
         {meta?.recentHeadlines && meta.recentHeadlines.length > 0 && (
           <div style={styles.headlinesCard}>
@@ -1910,6 +1921,7 @@ const styles: { [key: string]: CSSProperties } = {
   altTradeCard: { padding: 0, marginBottom: 0 },
   altCardTitle: { margin: 0, marginBottom: "10px", fontSize: "1.05rem", color: "#ffffff" },
   altTradeText: { marginBottom: "12px", color: "#cbd5e1", lineHeight: 1.6 },
+  altTradeConvertNote: { marginTop: "14px", padding: "10px 12px", background: "#1e1b4b", border: "1px solid #3730a3", borderRadius: "8px", fontSize: "0.82rem", color: "#c7d2fe", lineHeight: 1.5 },
   tradeGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "14px", marginBottom: "16px" },
   quoteRow: { display: "flex", gap: "24px", flexWrap: "wrap", paddingTop: "12px", borderTop: "1px solid #334155" },
   statBar: { display: "flex", gap: "0", marginTop: "14px", borderRadius: "10px", overflow: "hidden", border: "1px solid #334155" },
