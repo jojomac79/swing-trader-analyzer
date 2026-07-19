@@ -15,11 +15,15 @@ export async function GET() {
 
   console.log("disclaimer-status:", { email, data, error });
 
+  // Hardcoded comped/dev-premium accounts never have a real Stripe subscription,
+  // even if a stale stripe_customer_id (e.g. from earlier test-mode checkout)
+  // is still sitting in their row — never trust that column for these emails.
+  const DEV_PREMIUM_EMAILS = ["jojomac79@gmail.com", "411oakyates@gmail.com"];
+  const isDevPremium = DEV_PREMIUM_EMAILS.some((e) => e.toLowerCase() === email.toLowerCase());
+
   return NextResponse.json({
     accepted: !!data?.disclaimer_accepted,
     isPremium: !!data?.is_premium,
-    // Complimentary/dev-premium accounts have is_premium=true but no real
-    // Stripe subscription behind them — nothing for the billing portal to manage.
-    hasStripeCustomer: !!data?.stripe_customer_id,
+    hasStripeCustomer: isDevPremium ? false : !!data?.stripe_customer_id,
   });
 }
