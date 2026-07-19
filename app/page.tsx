@@ -852,6 +852,28 @@ export default function Home() {
   const [upgradeSheetOffset, setUpgradeSheetOffset] = useState(0);
   const upgradeSheetStartY = useRef<number | null>(null);
   const resultCardRef = useRef<HTMLDivElement>(null);
+  const scrollToAnalysisRef = useRef(false);
+
+  // Scroll to the full analysis AFTER the expanded text has actually rendered —
+  // doing it synchronously in the click handler races React's re-render and the
+  // added height of the <pre> block, so the smooth scroll lands short (e.g. on
+  // the Recent Headlines card above it instead of the analysis itself).
+  useEffect(() => {
+    if (showFullAnalysis && scrollToAnalysisRef.current) {
+      scrollToAnalysisRef.current = false;
+      // Double rAF + a short timeout: waits out both the paint of the newly
+      // expanded <pre> block and any late layout shift from content above it
+      // (headlines, tech card, etc.) settling, so the smooth scroll targets
+      // the final resting position instead of a mid-layout snapshot.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            resultCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }, 100);
+        });
+      });
+    }
+  }, [showFullAnalysis]);
 
   useEffect(() => {
     if (!isSignedIn) return;
@@ -1569,8 +1591,8 @@ export default function Home() {
         )}
 
         {result && <TradeSummaryCard bias={bias} confidence={confidenceScore} strategy={preferredStrategy} target={tradeTarget} invalidate={tradeInvalidate} onViewAnalysis={() => {
+          scrollToAnalysisRef.current = true;
           setShowFullAnalysis(true);
-          resultCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
         }} />}
 
         {meta?.tradeFilters && <TradeFiltersCard filters={meta.tradeFilters} />}
