@@ -872,8 +872,8 @@ export async function POST(req: Request) {
     const session = await auth();
     const email = session?.user?.email;
 
-    const DEV_PREMIUM_EMAIL = "jojomac79@gmail.com";
-    const isDevPremium = !!email && email.toLowerCase() === DEV_PREMIUM_EMAIL.toLowerCase();
+    const DEV_PREMIUM_EMAILS = ["jojomac79@gmail.com", "411oakyates@gmail.com"];
+    const isDevPremium = !!email && DEV_PREMIUM_EMAILS.some((e) => e.toLowerCase() === email.toLowerCase());
 
     // Sign-in is required to use the app — no anonymous access
     const isSignedIn = !!email;

@@ -278,8 +278,8 @@ export async function POST(req: Request) {
     const session = await auth();
     const email = session?.user?.email;
 
-    const DEV_PREMIUM_EMAIL = "jojomac79@gmail.com";
-    const isDevPremium = !!email && email.toLowerCase() === DEV_PREMIUM_EMAIL.toLowerCase();
+    const DEV_PREMIUM_EMAILS = ["jojomac79@gmail.com", "411oakyates@gmail.com"];
+    const isDevPremium = !!email && DEV_PREMIUM_EMAILS.some((e) => e.toLowerCase() === email.toLowerCase());
 
     if (!email) {
       return NextResponse.json({ error: "Sign in with Google to use the grader.", limitType: "anon_limit" }, { status: 401 });
