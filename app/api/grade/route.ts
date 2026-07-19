@@ -309,7 +309,13 @@ export async function POST(req: Request) {
       userData = existingUser;
     }
 
-    if (isDevPremium) userData.is_premium = true;
+    // Persist the dev-premium flag, not just set it in memory — otherwise
+    // /api/disclaimer-status (which reads is_premium straight from the DB)
+    // never sees it and the Pro badge / Manage Subscription UI stays wrong.
+    if (isDevPremium && !userData.is_premium) {
+      await supabaseAdmin.from("app_users").update({ is_premium: true }).eq("user_id", userId);
+      userData.is_premium = true;
+    }
 
     if (!userData.disclaimer_accepted) {
       return NextResponse.json({ error: "Please accept the disclaimer before using the grader.", limitType: "disclaimer_required" }, { status: 403 });
