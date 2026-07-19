@@ -769,6 +769,7 @@ export default function Home() {
   const [upgradePlan, setUpgradePlan] = useState<"monthly" | "yearly">("monthly");
   const [upgradeLoading, setUpgradeLoading] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
+  const [hasStripeCustomer, setHasStripeCustomer] = useState(false);
   const [ticker, setTicker] = useState("");
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
@@ -891,6 +892,7 @@ export default function Home() {
     fetch("/api/disclaimer-status").then((r) => r.json()).then((d) => {
       if (d.accepted) { setDisclaimerAccepted(true); } else { setShowDisclaimer(true); }
       setIsPremium(!!d.isPremium);
+      setHasStripeCustomer(!!d.hasStripeCustomer);
     }).catch(() => {});
   }, [isSignedIn]);
 
@@ -1282,7 +1284,8 @@ export default function Home() {
             {isSignedIn ? (
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                 {!isPremium && <button onClick={() => setShowUpgradeModal(true)} style={styles.upgradeButton}>⚡ Upgrade to Pro</button>}
-                {isPremium && <button onClick={handleManageSubscription} style={styles.manageSubButton}>Manage Subscription</button>}
+                {isPremium && hasStripeCustomer && <button onClick={handleManageSubscription} style={styles.manageSubButton}>Manage Subscription</button>}
+                {isPremium && !hasStripeCustomer && <div style={styles.complimentaryBadge}>Complimentary Pro Access</div>}
                 <button onClick={() => { setShowGoogleGate(false); setShowPaywall(false); setError(""); signOut(); }} style={styles.signOutButton}>Sign out</button>
               </div>
             ) : status !== "loading" && (
@@ -1860,6 +1863,7 @@ const styles: { [key: string]: CSSProperties } = {
   marketStatus: { marginTop: "10px", fontSize: "0.95rem", fontWeight: 500, color: "#94a3b8" },
   statusCard: { background: "#111827", border: "1px solid #334155", borderRadius: "14px", padding: "14px 16px", minWidth: "300px", display: "grid", gap: "8px", boxShadow: "0 10px 30px rgba(0,0,0,0.18)" },
   manageSubButton: { padding: "8px 12px", borderRadius: "8px", border: "1px solid #475569", background: "transparent", color: "#94a3b8", cursor: "pointer", fontSize: "0.85rem", justifySelf: "start" as const },
+  complimentaryBadge: { padding: "8px 12px", borderRadius: "8px", border: "1px solid #475569", background: "transparent", color: "#94a3b8", cursor: "default", fontSize: "0.85rem", justifySelf: "start" as const },
   signOutButton: { padding: "8px 12px", borderRadius: "8px", border: "1px solid #334155", background: "transparent", color: "#64748b", cursor: "pointer", fontSize: "0.85rem", justifySelf: "start" as const },
   searchRow: { display: "flex", gap: "10px", marginBottom: "20px", flexWrap: "wrap" },
   input: { flex: 1, minWidth: "240px", padding: "12px 14px", fontSize: "1rem", border: "1px solid #334155", borderRadius: "10px", background: "#1e293b", color: "#fff", outline: "none" },
