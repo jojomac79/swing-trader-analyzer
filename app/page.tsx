@@ -924,6 +924,39 @@ export default function Home() {
   const tradeTarget = useMemo(() => getTradeTarget(result), [result]);
   const tradeInvalidate = useMemo(() => getTradeInvalidate(result), [result]);
 
+  // Per-contract max profit/loss for the graded trade — only computed for the
+  // standard 2-leg vertical spreads (same expiration, same option type, one
+  // buy + one sell leg), which is what tradeType classifies as Call/Put Debit
+  // Spread or Bull Put/Bear Call Spread. Other structures (single leg,
+  // diagonals, condors) are left blank rather than showing a wrong number.
+  const gradeSpreadPL = useMemo(() => {
+    const verticalTypes = ["Call Debit Spread", "Put Debit Spread", "Bull Put Spread", "Bear Call Spread"];
+    if (!gradeMeta?.tradeType || !verticalTypes.includes(gradeMeta.tradeType)) return null;
+    if (gradeLegs.length !== 2) return null;
+    const [a, b] = gradeLegs;
+    if (a.type === "share" || b.type === "share" || a.type !== b.type) return null;
+    if (!a.strike || !b.strike || !a.premium || !b.premium) return null;
+    const buyLeg = a.action === "buy" ? a : b.action === "buy" ? b : null;
+    const sellLeg = a.action === "sell" ? a : b.action === "sell" ? b : null;
+    if (!buyLeg || !sellLeg || buyLeg === sellLeg) return null;
+
+    const buyStrike = parseFloat(buyLeg.strike), sellStrike = parseFloat(sellLeg.strike);
+    const buyPremium = parseFloat(buyLeg.premium), sellPremium = parseFloat(sellLeg.premium);
+    if ([buyStrike, sellStrike, buyPremium, sellPremium].some((n) => Number.isNaN(n))) return null;
+
+    const width = Math.abs(sellStrike - buyStrike);
+    if (width <= 0) return null;
+
+    const isCredit = gradeMeta.tradeType === "Bull Put Spread" || gradeMeta.tradeType === "Bear Call Spread";
+    if (isCredit) {
+      const netCredit = sellPremium - buyPremium;
+      return { maxProfit: netCredit * 100, maxLoss: (width - netCredit) * 100 };
+    } else {
+      const netDebit = buyPremium - sellPremium;
+      return { maxProfit: (width - netDebit) * 100, maxLoss: netDebit * 100 };
+    }
+  }, [gradeLegs, gradeMeta]);
+
   const selectedTradeCard = useMemo<SelectedTradeCard>(() => {
     if (!meta) return null;
     if (preferredStrategy === "Call Debit Spread" && meta.liveCallDebit) return { type: "callDebit", spread: meta.liveCallDebit };
@@ -1765,6 +1798,13 @@ export default function Home() {
             <div><strong>Price:</strong> ${gradeMeta.currentPrice}</div>
             <div><strong>Next Earnings:</strong> {gradeMeta.nextEarnings}</div>
             {gradeMeta.tradeType && <div><strong>Trade Type:</strong> {gradeMeta.tradeType}</div>}
+            {gradeSpreadPL && (
+              <div>
+                <strong>Max Profit:</strong> <span style={{ color: "#22c55e" }}>${gradeSpreadPL.maxProfit.toFixed(2)}</span>
+                {" "}<strong>Max Loss:</strong> <span style={{ color: "#ef4444" }}>${gradeSpreadPL.maxLoss.toFixed(2)}</span>
+                {" "}<span style={{ color: "#64748b", fontSize: "0.8rem" }}>(per contract)</span>
+              </div>
+            )}
           </div>
         )}
 
