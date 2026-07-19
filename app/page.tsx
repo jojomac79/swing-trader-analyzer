@@ -1805,6 +1805,8 @@ export default function Home() {
           <button onClick={() => setShowDisclaimer(true)} style={styles.disclaimerLink}>View Disclaimer</button>
           <span style={styles.footerDivider}>·</span>
           <button onClick={() => setShowPrivacyPolicy(true)} style={styles.disclaimerLink}>Privacy Policy</button>
+          <span style={styles.footerDivider}>·</span>
+          <a href="mailto:support@swingtradeanalyzer.com" style={styles.disclaimerLink}>support@swingtradeanalyzer.com</a>
         </div>
 
       </div>
