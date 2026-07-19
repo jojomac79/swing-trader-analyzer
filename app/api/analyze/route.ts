@@ -18,7 +18,7 @@ type TradierExpirationsResponse = { expirations?: { date?: string[] | string } }
 type TradierOptionContract = {
   symbol?: string; option_type?: "put" | "call"; strike?: number | string;
   bid?: number | string | null; ask?: number | string | null;
-  greeks?: { delta?: number | string | null } | null;
+  greeks?: { delta?: number | string | null; mid_iv?: number | string | null; smv_vol?: number | string | null } | null;
 };
 type TradierChainResponse = { options?: { option?: TradierOptionContract[] | TradierOptionContract } };
 type LiveCreditSpread = {
@@ -169,68 +169,55 @@ function dte(expDate: Date): number {
   return Math.round((expDate.getTime() - Date.now()) / MS_PER_DAY);
 }
 
-// Choose expiration for CREDIT strategies (bull put, bear call, condor)
-// Sweet spot: 14–35 DTE for max theta burn rate
-function chooseCreditExpiration(expirations: string[], earningsDate: string): string | null {
+// Target expiration for BOTH credit and debit strategies: ~45 DTE.
+// This is the widely-cited trader consensus sweet spot (popularized by
+// tastytrade's mechanical "sell/enter at 45 DTE, manage at 21 DTE" research):
+// far enough out to keep theta decay manageable and give directional debit
+// trades runway before time-value crush, but not so far that capital gets
+// tied up or gamma risk becomes negligible.
+const TARGET_DTE = 45;
+const DTE_BAND = 15; // acceptable window: 30–60 DTE around the target
+
+function chooseExpirationNearTarget(expirations: string[], earningsDate: string): string | null {
   if (!expirations.length) return null;
   const earnings = parseDateSafe(earningsDate);
   const today = new Date();
 
   const valid = expirations
     .map((e) => ({ raw: e, date: parseDateSafe(e) }))
-    .filter((x): x is { raw: string; date: Date } => x.date !== null && x.date > today);
+    .filter((x): x is { raw: string; date: Date } => x.date !== null && x.date > today)
+    .map((x) => ({ ...x, d: dte(x.date) }));
 
   if (!valid.length) return null;
 
-  // Prefer 14–35 DTE, stop before earnings if possible
-  const sweet = valid.filter((x) => {
-    const d = dte(x.date);
-    const beforeEarnings = !earnings || x.date < earnings;
-    return d >= 14 && d <= 35 && beforeEarnings;
-  });
-  if (sweet.length) return sweet[0].raw;
+  const closestToTarget = (pool: typeof valid) =>
+    pool.slice().sort((a, b) => Math.abs(a.d - TARGET_DTE) - Math.abs(b.d - TARGET_DTE))[0].raw;
 
-  // Fallback: anything 14–35 DTE even if earnings inside window
-  const sweetAny = valid.filter((x) => { const d = dte(x.date); return d >= 14 && d <= 35; });
-  if (sweetAny.length) return sweetAny[0].raw;
+  // Prefer 30–60 DTE, stop before earnings if possible
+  const band = valid.filter((x) => x.d >= TARGET_DTE - DTE_BAND && x.d <= TARGET_DTE + DTE_BAND);
+  const bandBeforeEarnings = band.filter((x) => !earnings || x.date < earnings);
+  if (bandBeforeEarnings.length) return closestToTarget(bandBeforeEarnings);
 
-  // Last resort: nearest expiry with at least 7 DTE
-  const minDte = valid.filter((x) => dte(x.date) >= 7);
-  return minDte.length ? minDte[0].raw : valid[0].raw;
+  // Fallback: 30–60 DTE even if earnings falls inside the window
+  if (band.length) return closestToTarget(band);
+
+  // Fallback: widen to anything with at least 14 DTE, pick nearest to 45
+  const minDte = valid.filter((x) => x.d >= 14);
+  if (minDte.length) return closestToTarget(minDte);
+
+  // Last resort: nearest available expiration to the target, period
+  return closestToTarget(valid);
 }
 
-// Choose expiration for DEBIT strategies (call debit, put debit, long options, diagonals)
-// Minimum 21 DTE to avoid theta crush; ideally 28–50 DTE
+// Both credit strategies (bull put, bear call, condor) and debit strategies
+// (call/put debit, long options, diagonals) now target the same ~45 DTE
+// expiration — see chooseExpirationNearTarget above.
+function chooseCreditExpiration(expirations: string[], earningsDate: string): string | null {
+  return chooseExpirationNearTarget(expirations, earningsDate);
+}
+
 function chooseDebitExpiration(expirations: string[], earningsDate: string): string | null {
-  if (!expirations.length) return null;
-  const earnings = parseDateSafe(earningsDate);
-  const today = new Date();
-
-  const valid = expirations
-    .map((e) => ({ raw: e, date: parseDateSafe(e) }))
-    .filter((x): x is { raw: string; date: Date } => x.date !== null && x.date > today);
-
-  if (!valid.length) return null;
-
-  // Prefer 21–50 DTE, stop before earnings if possible
-  const sweet = valid.filter((x) => {
-    const d = dte(x.date);
-    const beforeEarnings = !earnings || x.date < earnings;
-    return d >= 21 && d <= 50 && beforeEarnings;
-  });
-  if (sweet.length) return sweet[0].raw;
-
-  // Fallback: 21–50 DTE regardless of earnings
-  const sweetAny = valid.filter((x) => { const d = dte(x.date); return d >= 21 && d <= 50; });
-  if (sweetAny.length) return sweetAny[0].raw;
-
-  // Fallback: at least 21 DTE
-  const minDte = valid.filter((x) => dte(x.date) >= 21);
-  if (minDte.length) return minDte[0].raw;
-
-  // Last resort: best available (at least 14 DTE preferred)
-  const fallback = valid.filter((x) => dte(x.date) >= 14);
-  return fallback.length ? fallback[0].raw : valid[0].raw;
+  return chooseExpirationNearTarget(expirations, earningsDate);
 }
 
 // Legacy wrapper used for far expiration (diagonals)
@@ -244,6 +231,96 @@ function chooseFarExpiration(expirations: string[], nearExpiration: string): str
   const later = expirations.map((e) => ({ raw: e, date: parseDateSafe(e) })).filter((x): x is { raw: string; date: Date } => x.date !== null && x.date > near);
   if (!later.length) return null;
   return (later.find((x) => x.date.getTime() - near.getTime() >= 14 * 24 * 60 * 60 * 1000) ?? later[0]).raw;
+}
+
+// Nearest available expiration to an arbitrary target DTE — used to sample
+// the IV term structure at points other than the strategy's chosen expiration.
+function closestExpirationToDte(expirations: string[], targetDte: number, exclude: string[] = []): string | null {
+  const today = new Date();
+  const candidates = expirations
+    .filter((e) => !exclude.includes(e))
+    .map((e) => ({ raw: e, date: parseDateSafe(e) }))
+    .filter((x): x is { raw: string; date: Date } => x.date !== null && x.date > today)
+    .map((x) => ({ ...x, d: dte(x.date) }));
+  if (!candidates.length) return null;
+  return candidates.slice().sort((a, b) => Math.abs(a.d - targetDte) - Math.abs(b.d - targetDte))[0].raw;
+}
+
+// At-the-money implied vol for one expiration's chain — averages the call and
+// put mid_iv at the strike closest to spot (falls back to whichever side has
+// usable data). Tradier returns IV as a decimal (0.42 = 42%); we scale to a
+// percent for readability.
+function getAtmIV(options: TradierOptionContract[], price: number): number | null {
+  const withIv = (list: { strike: number; iv: number | null }[]) =>
+    list.filter((x): x is { strike: number; iv: number } => x.iv !== null);
+
+  const calls = withIv(options.filter((o) => o.option_type === "call")
+    .map((o) => ({ strike: toNumber(o.strike) ?? NaN, iv: toNumber(o.greeks?.mid_iv ?? o.greeks?.smv_vol ?? null) }))
+    .filter((o) => !Number.isNaN(o.strike)));
+  const puts = withIv(options.filter((o) => o.option_type === "put")
+    .map((o) => ({ strike: toNumber(o.strike) ?? NaN, iv: toNumber(o.greeks?.mid_iv ?? o.greeks?.smv_vol ?? null) }))
+    .filter((o) => !Number.isNaN(o.strike)));
+
+  const closest = (list: { strike: number; iv: number }[]) =>
+    list.length ? list.slice().sort((a, b) => Math.abs(a.strike - price) - Math.abs(b.strike - price))[0] : null;
+
+  const atmCall = closest(calls);
+  const atmPut = closest(puts);
+
+  if (atmCall && atmPut) return Math.round(((atmCall.iv + atmPut.iv) / 2) * 1000) / 10; // decimal -> percent, 1dp
+  if (atmCall) return Math.round(atmCall.iv * 1000) / 10;
+  if (atmPut) return Math.round(atmPut.iv * 1000) / 10;
+  return null;
+}
+
+// 20-day annualized realized (historical) volatility from daily closes —
+// the "is IV actually rich or cheap" baseline to compare the term structure against.
+function calcRealizedVol(closes: number[], period = 20): number | null {
+  if (closes.length < period + 1) return null;
+  const recent = closes.slice(-(period + 1));
+  const logReturns: number[] = [];
+  for (let i = 1; i < recent.length; i++) {
+    if (recent[i - 1] > 0 && recent[i] > 0) logReturns.push(Math.log(recent[i] / recent[i - 1]));
+  }
+  if (logReturns.length < 2) return null;
+  const mean = logReturns.reduce((a, b) => a + b, 0) / logReturns.length;
+  const variance = logReturns.reduce((a, b) => a + (b - mean) ** 2, 0) / (logReturns.length - 1);
+  const dailyStdev = Math.sqrt(variance);
+  const annualized = dailyStdev * Math.sqrt(252);
+  return Math.round(annualized * 1000) / 10; // decimal -> percent, 1dp
+}
+
+type VolTermPoint = { expiration: string; dte: number; atmIV: number | null };
+
+function buildVolSection(points: VolTermPoint[], realizedVol: number | null): string {
+  if (!points.length) return "";
+  const lines = ["IMPLIED VOLATILITY TERM STRUCTURE (ATM, by expiration):"];
+  points.forEach((p) => {
+    lines.push(`- ${p.dte} DTE (${p.expiration}): ${p.atmIV != null ? `${p.atmIV}% IV` : "IV unavailable"}`);
+  });
+
+  const withIv = points.filter((p) => p.atmIV != null) as { expiration: string; dte: number; atmIV: number }[];
+  if (withIv.length >= 2) {
+    const shortest = withIv[0];
+    const longest = withIv[withIv.length - 1];
+    const slope = longest.atmIV - shortest.atmIV;
+    const shape = Math.abs(slope) < 1.5 ? "flat" : slope > 0 ? "contango (further-dated options pricier — normal)" : "backwardation (near-dated options pricier — often event risk priced in)";
+    lines.push(`- Term structure shape: ${shape} (${shortest.dte}D ${shortest.atmIV}% → ${longest.dte}D ${longest.atmIV}%)`);
+  }
+
+  if (realizedVol != null) {
+    lines.push(`- 20-day realized volatility: ${realizedVol}%`);
+    const midPoint = withIv.find((p) => Math.abs(p.dte - 45) <= 15) ?? withIv[0];
+    if (midPoint) {
+      const ratio = Math.round((midPoint.atmIV / realizedVol) * 100) / 100;
+      const read = ratio >= 1.15 ? "IV running rich vs realized — favors selling premium (credit strategies)"
+        : ratio <= 0.9 ? "IV running cheap vs realized — favors buying premium (debit strategies)"
+        : "IV roughly in line with realized — no strong edge either way";
+      lines.push(`- IV/RV ratio (~${midPoint.dte} DTE): ${ratio} — ${read}`);
+    }
+  }
+
+  return lines.join("\n");
 }
 
 function computeCreditSpreadPop(d: number | null): number | null { return d == null ? null : Math.round((1 - Math.abs(d)) * 100); }
@@ -935,8 +1012,7 @@ export async function POST(req: Request) {
     const expirations = normalizeExpirations((await expRes.json()) as TradierExpirationsResponse);
 
     // ── Pick expirations by strategy type ────────────────────────────────────
-    // Credit strategies: 14–35 DTE (sweet spot for theta collection)
-    // Debit strategies: 21–50 DTE (avoid theta crush on long premium)
+    // Both credit and debit strategies now target the same ~45 DTE sweet spot
     const creditExpiration = chooseCreditExpiration(expirations, nextEarnings);
     const debitExpiration  = chooseDebitExpiration(expirations, nextEarnings);
 
@@ -948,8 +1024,15 @@ export async function POST(req: Request) {
     const nearExpiration = creditExpiration ?? debitExpiration!;
     const farExpiration  = chooseFarExpiration(expirations, nearExpiration);
 
-    // Fetch chains — may need two separate fetches if credit/debit expirations differ
-    const uniqueExps = [...new Set([creditExpiration, debitExpiration].filter(Boolean) as string[])];
+    // ── IV term structure sampling (informational only — does not affect
+    // which expiration gets traded, see chooseExpirationNearTarget) ──────────
+    const volShortExpiration = closestExpirationToDte(expirations, 25, [nearExpiration]);
+    const volLongExpiration  = closestExpirationToDte(expirations, 60, [nearExpiration, ...(volShortExpiration ? [volShortExpiration] : [])]);
+
+    // Fetch chains — may need separate fetches for credit/debit expirations plus vol-sampling points
+    const uniqueExps = [...new Set([
+      creditExpiration, debitExpiration, volShortExpiration, volLongExpiration,
+    ].filter(Boolean) as string[])];
 
     const chainMap: Record<string, TradierOptionContract[]> = {};
     await Promise.all(uniqueExps.map(async (exp) => {
@@ -973,17 +1056,32 @@ export async function POST(req: Request) {
       if (farRes.ok) farOptions = normalizeOptions((await farRes.json()) as TradierChainResponse);
     }
 
+    // ── IV term structure + realized vol (informational, see buildVolSection) ──
+    const volSampleExps = [...new Set([volShortExpiration, nearExpiration, volLongExpiration].filter(Boolean) as string[])];
+    const volTermStructure: VolTermPoint[] = volSampleExps
+      .map((exp) => {
+        const d = parseDateSafe(exp);
+        if (!d) return null;
+        const chain = chainMap[exp] ?? [];
+        return { expiration: exp, dte: dte(d), atmIV: chain.length ? getAtmIV(chain, currentPriceNumber) : null };
+      })
+      .filter((x): x is VolTermPoint => x !== null)
+      .sort((a, b) => a.dte - b.dte);
+
+    const realizedVol20 = parsedCandles?.c ? calcRealizedVol(parsedCandles.c, 20) : null;
+    const volSection = buildVolSection(volTermStructure, realizedVol20);
+
     // ── Build strategies using appropriate expiration chains ─────────────────
     const atrGap = techData?.atr14 ?? 0;
     const condorMinGap = Math.max(atrGap * 1.0, 1);
 
-    // Debit spreads: use debitOptions (21–50 DTE) to avoid theta crush
+    // Debit spreads: use debitOptions (~45 DTE) for adequate runway before theta crush
     let liveCallDebit = debitExpiration && debitOptions.length ? buildCallDebitSpread(debitOptions, currentPriceNumber, atrGap) : null;
     let livePutDebit  = debitExpiration && debitOptions.length ? buildPutDebitSpread(debitOptions, currentPriceNumber, atrGap) : null;
     if (liveCallDebit) liveCallDebit.expiration = debitExpiration!;
     if (livePutDebit)  livePutDebit.expiration  = debitExpiration!;
 
-    // Credit spreads: use creditOptions (14–35 DTE) for optimal theta burn
+    // Credit spreads: use creditOptions (~45 DTE) for optimal theta burn
     let liveBullPut  = creditExpiration && creditOptions.length ? buildBullPutSpread(creditOptions, currentPriceNumber, 0, atrGap) : null;
     let liveBearCall = creditExpiration && creditOptions.length ? buildBearCallSpread(creditOptions, currentPriceNumber, 0, atrGap) : null;
     if (liveBullPut)  liveBullPut.expiration  = creditExpiration!;
@@ -1102,6 +1200,7 @@ Next Earnings Date: ${nextEarnings}
 ${resolutionSection}
 
 ${technicalSection ? technicalSection + "\n" : ""}
+${volSection ? volSection + "\n" : ""}
 ${headlinesSection}
 
 ${gatedSection}
@@ -1116,6 +1215,7 @@ STRATEGY SELECTION RULES:
 - In MODERATE regime: credit spreads dominate. Diagonals are only a fallback if no credit spread exists.
 - In NEUTRAL regime: iron condor first. Credit spreads only if no condor is available.
 - Do not invent live pricing for strategies not shown in the live candidates section.
+- Use the IV term structure / IV-vs-realized-vol context as color for your reasoning (e.g. confidence, whether premium looks rich or cheap) — it does not override the regime-based strategy selection above.
 - Use headlines as context only.
 - If diagonal, note payoff is path-dependent.
 - No Trade is a valid and sometimes correct answer — never force a trade just because candidates exist.
@@ -1181,6 +1281,7 @@ Tone: Direct. Concise. Trader-focused. No fluff. No financial-advisor wording.`;
         liveCallDebit, livePutDebit, liveBullPut, liveBearCall,
         liveCallDiagonal, livePutDiagonal, liveIronCondor, liveLongCall, liveLongPut,
         recentHeadlines, techData,
+        volTermStructure, realizedVol20,
       },
     });
   } catch (error) {
