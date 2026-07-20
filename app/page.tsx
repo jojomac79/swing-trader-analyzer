@@ -802,6 +802,8 @@ export default function Home() {
   const [loadedExpiration, setLoadedExpiration] = useState<string>("");
   const [expLoading, setExpLoading] = useState(false);
   const [expSymbol, setExpSymbol] = useState(""); // which ticker we already loaded for
+  const [chainLoading, setChainLoading] = useState(false);
+  const chainRequestId = useRef(0);
 
   const loadExpirations = async (tickerVal: string, force = false) => {
     const t = tickerVal.trim();
@@ -811,9 +813,11 @@ export default function Home() {
     setExpLoading(true);
     setGradeError("");
     setExpirations([]); setStrikes([]); setLoadedExpiration("");
+    const requestId = ++chainRequestId.current; // invalidate any in-flight chain fetch for the old ticker
     try {
       const res = await fetch(`/api/expirations?ticker=${encodeURIComponent(t)}`);
       const data = await res.json();
+      if (requestId !== chainRequestId.current) return; // a newer request superseded this one — drop it
       if (!res.ok) {
         setGradeError(data.error ?? `Could not load dates for ${t}.`);
         return;
@@ -831,23 +835,34 @@ export default function Home() {
         setGradeError(`No options found for ${data.symbol ?? t}. Check the ticker.`);
       }
     } catch (err) {
+      if (requestId !== chainRequestId.current) return;
       setGradeError(err instanceof Error ? err.message : "Failed to load expiration dates.");
-    } finally { setExpLoading(false); }
+    } finally { if (requestId === chainRequestId.current) setExpLoading(false); }
   };
 
-  // When user changes expiration, fetch that expiration's chain for live premiums
+  // When user changes expiration, fetch that expiration's chain for live premiums.
+  // Guarded against races: if the user flips expirations quickly (or picks a strike
+  // before the fetch resolves), an older/slower response must never overwrite a
+  // newer one, and the strike dropdown is disabled while a fetch is in flight so
+  // autoFillPremium can't grab a premium from the previous expiration's chain.
   const loadChainForExpiration = async (exp: string) => {
     if (!exp || !expSymbol) return;
     if (exp === loadedExpiration) return;
+    const requestId = ++chainRequestId.current;
+    setChainLoading(true);
+    setStrikes([]); // stale strikes must not remain selectable/autofillable during the fetch
     try {
       const res = await fetch(`/api/expirations?ticker=${encodeURIComponent(expSymbol)}&expiration=${encodeURIComponent(exp)}`);
       const data = await res.json();
+      if (requestId !== chainRequestId.current) return; // superseded by a newer expiration change
       if (res.ok && data.strikes) {
         setStrikes(data.strikes);
         setLoadedExpiration(exp);
       }
     } catch (err) {
       console.error("Failed to load chain:", err);
+    } finally {
+      if (requestId === chainRequestId.current) setChainLoading(false);
     }
   };
 
@@ -1434,7 +1449,11 @@ export default function Home() {
                         </div>
                         <div style={styles.gradeLegField}>
                           <label style={styles.gradeLegFieldLabel}>Strike</label>
-                          {strikes.length > 0 ? (
+                          {chainLoading ? (
+                            <select disabled style={{ ...styles.gradeSelect, opacity: 0.6 }}>
+                              <option>Loading live premiums…</option>
+                            </select>
+                          ) : strikes.length > 0 ? (
                             <select
                               value={leg.strike}
                               onChange={e => {
