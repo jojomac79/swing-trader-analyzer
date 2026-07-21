@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { auth } from "@/auth";
+import { createMessageWithRetry, claudeErrorMessage } from "@/lib/callClaude";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -1270,7 +1271,7 @@ Alt Trade Idea (max risk):
 
 Tone: Direct. Concise. Trader-focused. No fluff. No financial-advisor wording.`;
 
-    const message = await anthropic.messages.create({
+    const message = await createMessageWithRetry(anthropic, {
       model: "claude-sonnet-4-6",
       max_tokens: 1500,
       messages: [{ role: "user", content: prompt }],
@@ -1292,6 +1293,6 @@ Tone: Direct. Concise. Trader-focused. No fluff. No financial-advisor wording.`;
     });
   } catch (error) {
     console.error("Analyze error:", error);
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Something went wrong." }, { status: 500 });
+    return NextResponse.json({ error: claudeErrorMessage(error) }, { status: 500 });
   }
 }
