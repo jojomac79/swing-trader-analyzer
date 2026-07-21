@@ -3,6 +3,20 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type TouchEvent } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 
+declare global {
+  interface Window {
+    gtag?: (...args: unknown[]) => void;
+  }
+}
+
+// Fires a GA4 event via the gtag.js snippet already loaded in app/layout.tsx.
+// No-ops safely if gtag hasn't loaded yet (e.g. ad blockers).
+function trackEvent(eventName: string, params?: Record<string, unknown>) {
+  if (typeof window !== "undefined" && typeof window.gtag === "function") {
+    window.gtag("event", eventName, params);
+  }
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 type LiveCreditSpread = {
   strategyType: "Bull Put Spread" | "Bear Call Spread";
@@ -1242,7 +1256,11 @@ export default function Home() {
             <button disabled={disclaimerLoading} onClick={async () => {
               if (!disclaimerAccepted && isSignedIn) {
                 setDisclaimerLoading(true);
-                try { await fetch("/api/accept-disclaimer", { method: "POST" }); } catch { }
+                try {
+                  const res = await fetch("/api/accept-disclaimer", { method: "POST" });
+                  const data = await res.json().catch(() => null);
+                  if (data?.isNewUser) trackEvent("sign_up", { method: "google" });
+                } catch { }
                 finally { setDisclaimerLoading(false); }
                 setDisclaimerAccepted(true);
               }
